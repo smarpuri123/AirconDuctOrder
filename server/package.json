@@ -1,0 +1,46 @@
+{
+  "name": "ecovent-server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:push": "prisma db push",
+    "db:seed": "tsx prisma/seed.ts",
+    "db:seed:demo": "tsx prisma/run-seed-demo.ts",
+    "db:clear": "tsx prisma/clear-business-data.ts",
+    "db:clear-legacy-enquiries": "tsx prisma/clear-legacy-enquiries.ts",
+    "db:migrate-enquiry-numbers": "tsx prisma/migrate-enquiry-numbers.ts",
+    "db:backfill-enquiry-intake": "tsx prisma/backfill-enquiry-intake.ts",
+    "db:studio": "prisma studio",
+    "test": "tsx --test src/**/*.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@fastify/cors": "^10.0.2",
+    "@fastify/jwt": "^9.0.4",
+    "@prisma/client": "^6.3.0",
+    "bcryptjs": "^2.4.3",
+    "dotenv": "^16.4.7",
+    "fastify": "^5.2.1",
+    "web-push": "^3.6.7",
+    "ws": "^8.21.3",
+    "zod": "^3.24.1"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^22.10.5",
+    "@types/web-push": "^3.6.4",
+    "@types/ws": "^8.18.1",
+    "prisma": "^6.3.0",
+    "tsx": "^4.19.2",
+    "typescript": "~5.7.2"
+  }
+}

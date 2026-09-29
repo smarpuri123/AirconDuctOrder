@@ -1,0 +1,55 @@
+[
+  {
+    "id": "disp-001",
+    "dispatchNo": "D-2026-0092",
+    "orderId": "ord-001",
+    "orderNo": "AIRMASTER-WO-845",
+    "customerName": "NEW KC",
+    "vehicle": {
+      "vehicleNumber": "AP01XY4567",
+      "driverName": "Suresh",
+      "driverMobile": "9876543210",
+      "transporter": "ABC Transport",
+      "vehicleType": "32 ft",
+      "loadingDate": "2026-09-17",
+      "loadingTime": "14:30"
+    },
+    "items": [
+      { "orderItemId": "item-002", "tagNo": 2, "description": "OFLINE", "w1": 800, "h1": 600, "w2": 800, "h2": 600, "length": 900, "quantity": 1, "area": 2.52 },
+      { "orderItemId": "item-003", "tagNo": 3, "description": "OFLINE", "w1": 850, "h1": 400, "w2": 850, "h2": 400, "length": 900, "quantity": 2, "area": 4.5 },
+      { "orderItemId": "item-004", "tagNo": 4, "description": "OFLINE", "w1": 1000, "h1": 400, "w2": 1000, "h2": 400, "length": 900, "quantity": 1, "area": 2.52 },
+      { "orderItemId": "item-005", "tagNo": 5, "description": "OFLINE", "w1": 1150, "h1": 450, "w2": 1150, "h2": 450, "length": 900, "quantity": 1, "area": 2.88 },
+      { "orderItemId": "item-006", "tagNo": 6, "description": "OFLINE", "w1": 1200, "h1": 500, "w2": 1200, "h2": 500, "length": 900, "quantity": 1, "area": 3.06 },
+      { "orderItemId": "item-012", "tagNo": 12, "description": "OFLINE", "w1": 1800, "h1": 600, "w2": 1800, "h2": 600, "length": 900, "quantity": 1, "area": 4.32 }
+    ],
+    "totalQuantity": 7,
+    "totalArea": 19.8,
+    "status": "delivered",
+    "dispatchDate": "2026-09-17",
+    "createdAt": "2026-09-17T15:00:00Z"
+  },
+  {
+    "id": "disp-002",
+    "dispatchNo": "D-2026-0098",
+    "orderId": "ord-006",
+    "orderNo": "NEWKC-WO-501",
+    "customerName": "NEW KC",
+    "vehicle": {
+      "vehicleNumber": "AP02AB1234",
+      "driverName": "Ramesh",
+      "driverMobile": "9123456789",
+      "transporter": "XYZ Logistics",
+      "vehicleType": "24 ft",
+      "loadingDate": "2026-09-18",
+      "loadingTime": "10:30"
+    },
+    "items": [
+      { "orderItemId": "item-501", "tagNo": 1, "description": "OFLINE", "w1": 950, "h1": 450, "w2": 950, "h2": 450, "length": 900, "quantity": 6, "area": 17.16 }
+    ],
+    "totalQuantity": 6,
+    "totalArea": 17.16,
+    "status": "loading",
+    "dispatchDate": "2026-09-18",
+    "createdAt": "2026-09-18T11:00:00Z"
+  }
+]

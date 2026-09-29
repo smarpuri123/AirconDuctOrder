@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: ecovent-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ecovent
+      POSTGRES_PASSWORD: ecovent_dev
+      POSTGRES_DB: ecovent_ops
+    ports:
+      - "5432:5432"
+    volumes:
+      - ecovent_pg_data:/var/lib/postgresql/data
+
+volumes:
+  ecovent_pg_data:

@@ -1,0 +1,70 @@
+{
+  "departments": [
+    { "id": "dept-commercial", "code": "COMMERCIAL", "name": "Commercial / Sales", "sortOrder": 1, "active": true },
+    { "id": "dept-design", "code": "DESIGN", "name": "Design / Engineering", "sortOrder": 2, "active": true },
+    { "id": "dept-production", "code": "PRODUCTION", "name": "Production", "sortOrder": 3, "active": true },
+    { "id": "dept-dispatch", "code": "DISPATCH", "name": "Dispatch / Logistics", "sortOrder": 4, "active": true },
+    { "id": "dept-accounts", "code": "ACCOUNTS", "name": "Accounts", "sortOrder": 5, "active": true },
+    { "id": "dept-admin", "code": "ADMIN", "name": "Administration", "sortOrder": 6, "active": true }
+  ],
+  "jobRoles": [
+    { "id": "jr-sales-exec", "code": "SALES_EXEC", "label": "Sales Executive", "departmentId": "dept-commercial", "sortOrder": 1, "active": true },
+    { "id": "jr-design-eng", "code": "DESIGN_ENGINEER", "label": "Design Engineer", "departmentId": "dept-design", "sortOrder": 1, "active": true },
+    { "id": "jr-design-lead", "code": "DESIGN_LEAD", "label": "Design In-charge", "departmentId": "dept-design", "sortOrder": 2, "active": true },
+    { "id": "jr-prod", "code": "PRODUCTION_INCHARGE", "label": "Production In-charge", "departmentId": "dept-production", "sortOrder": 1, "active": true },
+    { "id": "jr-dispatch", "code": "DISPATCHER", "label": "Dispatch Coordinator", "departmentId": "dept-dispatch", "sortOrder": 1, "active": true },
+    { "id": "jr-accounts", "code": "ACCOUNTS", "label": "Accounts", "departmentId": "dept-accounts", "sortOrder": 1, "active": true }
+  ],
+  "stageRoles": [
+    { "stageCode": "enquiry", "jobRoleCode": "SALES_EXEC" },
+    { "stageCode": "design_review", "jobRoleCode": "DESIGN_ENGINEER" },
+    { "stageCode": "design_review", "jobRoleCode": "DESIGN_LEAD" },
+    { "stageCode": "manufacturing", "jobRoleCode": "PRODUCTION_INCHARGE" },
+    { "stageCode": "dispatch", "jobRoleCode": "DISPATCHER" }
+  ],
+  "employees": [
+    {
+      "id": "emp-karthik",
+      "name": "Karthik S",
+      "email": "sales@ecovent.com",
+      "employeeCode": "EMP-001",
+      "departmentId": "dept-commercial",
+      "departmentName": "Commercial / Sales",
+      "active": true,
+      "jobRoles": [
+        { "code": "SALES_EXEC", "label": "Sales Executive", "isPrimary": true }
+      ]
+    },
+    {
+      "id": "emp-priya",
+      "name": "Priya N",
+      "email": "design@ecovent.com",
+      "employeeCode": "EMP-002",
+      "departmentId": "dept-design",
+      "departmentName": "Design / Engineering",
+      "active": true,
+      "jobRoles": [
+        { "code": "DESIGN_ENGINEER", "label": "Design Engineer", "isPrimary": true },
+        { "code": "DESIGN_LEAD", "label": "Design In-charge", "isPrimary": false }
+      ]
+    },
+    {
+      "id": "emp-ravi",
+      "name": "Ravi M",
+      "employeeCode": "EMP-003",
+      "departmentId": "dept-production",
+      "departmentName": "Production",
+      "active": true,
+      "jobRoles": [{ "code": "PRODUCTION_INCHARGE", "label": "Production In-charge", "isPrimary": true }]
+    },
+    {
+      "id": "emp-suresh",
+      "name": "Suresh K",
+      "employeeCode": "EMP-004",
+      "departmentId": "dept-dispatch",
+      "departmentName": "Dispatch / Logistics",
+      "active": true,
+      "jobRoles": [{ "code": "DISPATCHER", "label": "Dispatch Coordinator", "isPrimary": true }]
+    }
+  ]
+}

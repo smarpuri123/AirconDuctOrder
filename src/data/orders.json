@@ -1,0 +1,147 @@
+[
+  {
+    "id": "ord-001",
+    "orderNo": "AIRMASTER-WO-845",
+    "jobName": "AIRMASTER-WO-845",
+    "customerId": "cust-001",
+    "customerName": "NEW KC",
+    "productionDate": "2026-09-17",
+    "totalQuantity": 18,
+    "totalArea": 55.01,
+    "status": "partially_dispatched",
+    "revision": 1,
+    "productionApproved": true,
+    "productionApprovedBy": "Ravi M",
+    "productionApprovedDate": "2026-09-03",
+    "createdAt": "2026-09-17T08:00:00Z",
+    "items": [
+      { "id": "item-001", "orderId": "ord-001", "tagNo": 1, "description": "OFLINE", "w1": 800, "h1": 400, "w2": 800, "h2": 400, "length": 900, "orderedQty": 1, "area": 2.16, "producedQty": 1, "readyQty": 1, "dispatchedQty": 0 },
+      { "id": "item-002", "orderId": "ord-001", "tagNo": 2, "description": "OFLINE", "w1": 800, "h1": 600, "w2": 800, "h2": 600, "length": 900, "orderedQty": 1, "area": 2.52, "producedQty": 1, "readyQty": 1, "dispatchedQty": 1 },
+      { "id": "item-003", "orderId": "ord-001", "tagNo": 3, "description": "OFLINE", "w1": 850, "h1": 400, "w2": 850, "h2": 400, "length": 900, "orderedQty": 4, "area": 9.0, "producedQty": 4, "readyQty": 4, "dispatchedQty": 2 },
+      { "id": "item-004", "orderId": "ord-001", "tagNo": 4, "description": "OFLINE", "w1": 1000, "h1": 400, "w2": 1000, "h2": 400, "length": 900, "orderedQty": 2, "area": 5.04, "producedQty": 2, "readyQty": 2, "dispatchedQty": 1 },
+      { "id": "item-005", "orderId": "ord-001", "tagNo": 5, "description": "OFLINE", "w1": 1150, "h1": 450, "w2": 1150, "h2": 450, "length": 900, "orderedQty": 1, "area": 2.88, "producedQty": 1, "readyQty": 1, "dispatchedQty": 1 },
+      { "id": "item-006", "orderId": "ord-001", "tagNo": 6, "description": "OFLINE", "w1": 1200, "h1": 500, "w2": 1200, "h2": 500, "length": 900, "orderedQty": 1, "area": 3.06, "producedQty": 1, "readyQty": 1, "dispatchedQty": 1 },
+      { "id": "item-007", "orderId": "ord-001", "tagNo": 7, "description": "OFLINE", "w1": 1250, "h1": 500, "w2": 1250, "h2": 500, "length": 900, "orderedQty": 1, "area": 3.15, "producedQty": 1, "readyQty": 1, "dispatchedQty": 0 },
+      { "id": "item-008", "orderId": "ord-001", "tagNo": 8, "description": "OFLINE", "w1": 1500, "h1": 500, "w2": 1500, "h2": 500, "length": 900, "orderedQty": 1, "area": 3.6, "producedQty": 1, "readyQty": 1, "dispatchedQty": 0 },
+      { "id": "item-009", "orderId": "ord-001", "tagNo": 9, "description": "OFLINE", "w1": 1500, "h1": 600, "w2": 1500, "h2": 600, "length": 900, "orderedQty": 2, "area": 7.56, "producedQty": 2, "readyQty": 2, "dispatchedQty": 0 },
+      { "id": "item-010", "orderId": "ord-001", "tagNo": 10, "description": "OFLINE", "w1": 1550, "h1": 550, "w2": 1550, "h2": 550, "length": 900, "orderedQty": 1, "area": 3.78, "producedQty": 1, "readyQty": 1, "dispatchedQty": 0 },
+      { "id": "item-011", "orderId": "ord-001", "tagNo": 11, "description": "OFLINE", "w1": 1600, "h1": 600, "w2": 1600, "h2": 600, "length": 900, "orderedQty": 2, "area": 7.92, "producedQty": 2, "readyQty": 2, "dispatchedQty": 0 },
+      { "id": "item-012", "orderId": "ord-001", "tagNo": 12, "description": "OFLINE", "w1": 1800, "h1": 600, "w2": 1800, "h2": 600, "length": 900, "orderedQty": 1, "area": 4.32, "producedQty": 1, "readyQty": 1, "dispatchedQty": 1 }
+    ]
+  },
+  {
+    "id": "ord-002",
+    "orderNo": "AIRMASTER-WO-846",
+    "jobName": "AIRMASTER-WO-846",
+    "customerId": "cust-002",
+    "customerName": "Airmaster HVAC",
+    "productionDate": "2026-09-18",
+    "totalQuantity": 12,
+    "totalArea": 38.5,
+    "status": "ready",
+    "revision": 1,
+    "createdAt": "2026-09-18T06:00:00Z",
+    "items": [
+      { "id": "item-101", "orderId": "ord-002", "tagNo": 1, "description": "OFLINE", "w1": 600, "h1": 300, "w2": 600, "h2": 300, "length": 900, "orderedQty": 3, "area": 4.86, "producedQty": 3, "readyQty": 3, "dispatchedQty": 0 },
+      { "id": "item-102", "orderId": "ord-002", "tagNo": 2, "description": "OFLINE", "w1": 900, "h1": 450, "w2": 900, "h2": 450, "length": 900, "orderedQty": 4, "area": 9.72, "producedQty": 4, "readyQty": 4, "dispatchedQty": 0 },
+      { "id": "item-103", "orderId": "ord-002", "tagNo": 3, "description": "OFLINE", "w1": 1200, "h1": 500, "w2": 1200, "h2": 500, "length": 900, "orderedQty": 5, "area": 15.3, "producedQty": 5, "readyQty": 5, "dispatchedQty": 0 }
+    ]
+  },
+  {
+    "id": "ord-003",
+    "orderNo": "COOLAIR-WO-112",
+    "jobName": "COOLAIR-WO-112",
+    "customerId": "cust-003",
+    "customerName": "CoolAir Projects",
+    "productionDate": "2026-09-15",
+    "totalQuantity": 24,
+    "totalArea": 72.4,
+    "status": "fully_dispatched",
+    "revision": 1,
+    "createdAt": "2026-09-15T10:00:00Z",
+    "items": [
+      { "id": "item-201", "orderId": "ord-003", "tagNo": 1, "description": "OFLINE", "w1": 700, "h1": 350, "w2": 700, "h2": 350, "length": 900, "orderedQty": 8, "area": 18.9, "producedQty": 8, "readyQty": 8, "dispatchedQty": 8 },
+      { "id": "item-202", "orderId": "ord-003", "tagNo": 2, "description": "OFLINE", "w1": 1100, "h1": 500, "w2": 1100, "h2": 500, "length": 900, "orderedQty": 16, "area": 53.5, "producedQty": 16, "readyQty": 16, "dispatchedQty": 16 }
+    ]
+  },
+  {
+    "id": "ord-004",
+    "orderNo": "METRO-WO-203",
+    "jobName": "METRO-WO-203",
+    "customerId": "cust-004",
+    "customerName": "Metro Ducting",
+    "productionDate": "2026-09-10",
+    "totalQuantity": 6,
+    "totalArea": 15.2,
+    "status": "production",
+    "revision": 1,
+    "createdAt": "2026-09-10T08:00:00Z",
+    "items": [
+      { "id": "item-301", "orderId": "ord-004", "tagNo": 1, "description": "OFLINE", "w1": 500, "h1": 250, "w2": 500, "h2": 250, "length": 900, "orderedQty": 6, "area": 15.2, "producedQty": 3, "readyQty": 0, "dispatchedQty": 0 }
+    ]
+  },
+  {
+    "id": "ord-005",
+    "orderNo": "AIRMASTER-WO-847",
+    "jobName": "AIRMASTER-WO-847",
+    "customerId": "cust-002",
+    "customerName": "Airmaster HVAC",
+    "productionDate": "2026-09-18",
+    "totalQuantity": 8,
+    "totalArea": 22.1,
+    "status": "ready",
+    "revision": 1,
+    "createdAt": "2026-09-18T09:00:00Z",
+    "items": [
+      { "id": "item-401", "orderId": "ord-005", "tagNo": 1, "description": "OFLINE", "w1": 800, "h1": 400, "w2": 800, "h2": 400, "length": 900, "orderedQty": 8, "area": 22.1, "producedQty": 8, "readyQty": 8, "dispatchedQty": 0 }
+    ]
+  },
+  {
+    "id": "ord-006",
+    "orderNo": "NEWKC-WO-501",
+    "jobName": "NEWKC-WO-501",
+    "customerId": "cust-001",
+    "customerName": "NEW KC",
+    "productionDate": "2026-09-12",
+    "totalQuantity": 10,
+    "totalArea": 28.6,
+    "status": "partially_dispatched",
+    "revision": 1,
+    "createdAt": "2026-09-12T07:00:00Z",
+    "items": [
+      { "id": "item-501", "orderId": "ord-006", "tagNo": 1, "description": "OFLINE", "w1": 950, "h1": 450, "w2": 950, "h2": 450, "length": 900, "orderedQty": 10, "area": 28.6, "producedQty": 10, "readyQty": 10, "dispatchedQty": 6 }
+    ]
+  },
+  {
+    "id": "ord-007",
+    "orderNo": "COOLAIR-WO-113",
+    "jobName": "COOLAIR-WO-113",
+    "customerId": "cust-003",
+    "customerName": "CoolAir Projects",
+    "productionDate": "2026-09-16",
+    "totalQuantity": 15,
+    "totalArea": 41.3,
+    "status": "ready",
+    "revision": 1,
+    "createdAt": "2026-09-16T11:00:00Z",
+    "items": [
+      { "id": "item-601", "orderId": "ord-007", "tagNo": 1, "description": "OFLINE", "w1": 1000, "h1": 500, "w2": 1000, "h2": 500, "length": 900, "orderedQty": 15, "area": 41.3, "producedQty": 15, "readyQty": 15, "dispatchedQty": 0 }
+    ]
+  },
+  {
+    "id": "ord-008",
+    "orderNo": "METRO-WO-204",
+    "jobName": "METRO-WO-204",
+    "customerId": "cust-004",
+    "customerName": "Metro Ducting",
+    "productionDate": "2026-09-05",
+    "totalQuantity": 20,
+    "totalArea": 58.0,
+    "status": "fully_dispatched",
+    "revision": 1,
+    "createdAt": "2026-09-05T08:00:00Z",
+    "items": [
+      { "id": "item-701", "orderId": "ord-008", "tagNo": 1, "description": "OFLINE", "w1": 1400, "h1": 600, "w2": 1400, "h2": 600, "length": 900, "orderedQty": 20, "area": 58.0, "producedQty": 20, "readyQty": 20, "dispatchedQty": 20 }
+    ]
+  }
+]

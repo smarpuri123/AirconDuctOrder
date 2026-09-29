@@ -1,0 +1,29 @@
+Firm Details and GST based Search
+
+Designer Assignment and allocation of Work
+
+
+Assigned To: Design manager specific based on User
+Expected Design Turnover Window
+
+Add Status Counts to Highlight the pending cases.
+
+
+Input Data multiple File format like PDF, Image, Word, Excel,DWG.
+
+No viewer only Download Option.
+
+Design Apprival Stage by Admin before Submitting to client.
+
+Once Design is Approved, the Accounts will Download Files and Create a Quote.
+
+Quote Generate Workflow, to production approval.
+
+Production in parallel steps Straight Duct and Plasma process not need to track exact Quantity.
+
+Multi Unit wise Operations
+
+Operational Priorities 
+
+
+

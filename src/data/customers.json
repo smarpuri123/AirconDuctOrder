@@ -1,0 +1,22 @@
+[
+  {
+    "id": "cust-001",
+    "name": "NEW KC",
+    "contact": "+91 98765 43210"
+  },
+  {
+    "id": "cust-002",
+    "name": "Airmaster HVAC",
+    "contact": "+91 91234 56789"
+  },
+  {
+    "id": "cust-003",
+    "name": "CoolAir Projects",
+    "contact": "+91 99887 76655"
+  },
+  {
+    "id": "cust-004",
+    "name": "Metro Ducting",
+    "contact": "+91 97654 32109"
+  }
+]

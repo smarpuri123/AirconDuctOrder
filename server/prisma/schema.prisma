@@ -1,0 +1,835 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Auth & Authorization ───────────────────────────────────────────────────
+
+model User {
+  id           String    @id @default(cuid())
+  username     String    @unique
+  email        String    @unique
+  passwordHash String    @map("password_hash")
+  name         String
+  phone        String?
+  active       Boolean   @default(true)
+  lastLoginAt  DateTime? @map("last_login_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  roles            UserRole[]
+  auditLogs        AuditLog[]        @relation("AuditActor")
+  dispatchesCreated Dispatch[]       @relation("DispatchCreator")
+  workflowHistory  WorkflowHistory[]
+  employee         Employee?
+  notifications    Notification[]
+  pushSubscriptions PushSubscription[]
+  notificationPreference NotificationPreference?
+
+  @@map("users")
+}
+
+// ─── Notifications ───────────────────────────────────────────────────────────
+
+model Notification {
+  id          String    @id @default(cuid())
+  recipientId String    @map("recipient_id")
+  title       String
+  message     String
+  type        String    @default("info")
+  entityType  String?   @map("entity_type")
+  entityId    String?   @map("entity_id")
+  metadata    Json?
+  createdAt   DateTime  @default(now()) @map("created_at")
+  readAt      DateTime? @map("read_at")
+
+  recipient User @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+
+  @@index([recipientId])
+  @@index([recipientId, createdAt(sort: Desc)])
+  @@index([recipientId, readAt])
+  @@map("notifications")
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  endpoint  String
+  p256dh    String
+  auth      String
+  userAgent String?  @map("user_agent")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, endpoint])
+  @@index([userId])
+  @@map("push_subscriptions")
+}
+
+model NotificationPreference {
+  userId       String   @id @map("user_id")
+  inAppEnabled Boolean  @default(true) @map("in_app_enabled")
+  pushEnabled  Boolean  @default(false) @map("push_enabled")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notification_preferences")
+}
+
+// ─── Organization (internal) ─────────────────────────────────────────────────
+
+model Department {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  name      String
+  active    Boolean  @default(true)
+  sortOrder Int      @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  employees Employee[]
+  jobRoles  JobRole[]
+
+  @@map("departments")
+}
+
+model JobRole {
+  id           String   @id @default(cuid())
+  code         String   @unique
+  label        String
+  departmentId String?  @map("department_id")
+  active       Boolean  @default(true)
+  sortOrder    Int      @default(0) @map("sort_order")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  department   Department?         @relation(fields: [departmentId], references: [id])
+  employees    EmployeeJobRole[]
+  stageRoles   WorkflowStageRole[]
+
+  @@map("job_roles")
+}
+
+model Employee {
+  id           String   @id @default(cuid())
+  userId       String?  @unique @map("user_id")
+  departmentId String?  @map("department_id")
+  employeeCode String?  @map("employee_code")
+  name         String
+  email        String?
+  phone        String?
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  user              User?             @relation(fields: [userId], references: [id])
+  department        Department?       @relation(fields: [departmentId], references: [id])
+  jobRoles          EmployeeJobRole[]
+  enquiriesAsPic    Enquiry[]         @relation("EnquiryPic")
+  enquiriesAsAssignee Enquiry[]       @relation("EnquiryAssignee")
+
+  @@map("employees")
+}
+
+model EmployeeJobRole {
+  employeeId String  @map("employee_id")
+  jobRoleId  String  @map("job_role_id")
+  isPrimary  Boolean @default(false) @map("is_primary")
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  jobRole  JobRole  @relation(fields: [jobRoleId], references: [id], onDelete: Cascade)
+
+  @@id([employeeId, jobRoleId])
+  @@map("employee_job_roles")
+}
+
+model WorkflowStageRole {
+  id        String @id @default(cuid())
+  stageCode String @map("stage_code")
+  jobRoleId String @map("job_role_id")
+
+  jobRole JobRole @relation(fields: [jobRoleId], references: [id], onDelete: Cascade)
+
+  @@unique([stageCode, jobRoleId])
+  @@map("workflow_stage_roles")
+}
+
+model Role {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  users       UserRole[]
+  permissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String
+  module      String
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  roles RolePermission[]
+
+  @@map("permissions")
+}
+
+model UserRole {
+  userId String @map("user_id")
+  roleId String @map("role_id")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@map("user_roles")
+}
+
+model RolePermission {
+  roleId       String @map("role_id")
+  permissionId String @map("permission_id")
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+// ─── CRM ────────────────────────────────────────────────────────────────────
+
+model Customer {
+  id        String   @id @default(cuid())
+  code      String?  @unique
+  name      String
+  email     String?
+  phone     String?
+  address   String?
+  city      String?
+  state     String?
+  country   String?
+  gstin     String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  contacts       Contact[]
+  projects       Project[]
+  enquiries      Enquiry[]
+  quotations     Quotation[]
+  customerOrders CustomerOrder[]
+
+  @@map("customers")
+}
+
+model Contact {
+  id          String  @id @default(cuid())
+  customerId  String  @map("customer_id")
+  firstName   String  @map("first_name")
+  lastName    String? @map("last_name")
+  email       String?
+  phone       String?
+  whatsapp    String?
+  designation String?
+  department  String?
+  isPrimary   Boolean @default(false) @map("is_primary")
+  active      Boolean @default(true)
+
+  customer         Customer         @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  projectContacts  ProjectContact[]
+  enquiries        Enquiry[]
+
+  @@map("contacts")
+}
+
+model Project {
+  id                 String    @id @default(cuid())
+  customerId         String    @map("customer_id")
+  code               String    @unique
+  name               String
+  projectType        String?   @map("project_type")
+  location           String?
+  description        String?
+  status             String    @default("ACTIVE")
+  startDate          DateTime? @map("start_date")
+  expectedCompletion DateTime? @map("expected_completion")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  customer         Customer         @relation(fields: [customerId], references: [id])
+  projectContacts  ProjectContact[]
+  enquiries      Enquiry[]
+  drawings       Drawing[]
+  ductSchedules  DuctSchedule[]
+  quotations     Quotation[]
+  customerOrders CustomerOrder[]
+
+  @@map("projects")
+}
+
+model ProjectContact {
+  id        String   @id @default(cuid())
+  projectId String   @map("project_id")
+  contactId String   @map("contact_id")
+  role      String
+  isPrimary Boolean  @default(false) @map("is_primary")
+  isActive  Boolean  @default(true) @map("is_active")
+  notes     String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, contactId, role])
+  @@map("project_contacts")
+}
+
+model MasterLookup {
+  id        String   @id @default(cuid())
+  category  String
+  code      String
+  label     String
+  sortOrder Int      @default(0) @map("sort_order")
+  active    Boolean  @default(true)
+  metadata  Json?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([category, code])
+  @@index([category, active, sortOrder])
+  @@map("master_lookups")
+}
+
+model Enquiry {
+  id                 String    @id @default(cuid())
+  enquiryNo          String    @unique @map("enquiry_no")
+  customerId         String    @map("customer_id")
+  projectId          String?   @map("project_id")
+  contactId          String?   @map("contact_id")
+  customerOrderId    String?   @unique @map("customer_order_id")
+  contactPerson      String?   @map("contact_person")
+  phone              String?
+  email              String?
+  projectName        String    @map("project_name")
+  projectLocation    String?   @map("project_location")
+  enquiryDate        DateTime  @default(now()) @map("enquiry_date")
+  expectedCompletion DateTime? @map("expected_completion")
+  salesPerson        String?   @map("sales_person")
+  priority           String    @default("NORMAL")
+  source             String?
+  remarks            String?
+  status             String    @default("NEW")
+  designStatus       String    @default("PENDING") @map("design_status")
+  designRevision     Int       @default(1) @map("design_revision")
+  designReviewedBy   String?   @map("design_reviewed_by")
+  designReviewDate   DateTime? @map("design_review_date")
+  ductTags           Int?      @map("duct_tags")
+  ductTotalQty       Int?      @map("duct_total_qty")
+  ductTotalArea      Decimal?  @map("duct_total_area") @db.Decimal(12, 2)
+  designNotes        String?   @map("design_notes")
+  drawingFileName    String?   @map("drawing_file_name")
+  personInChargeId   String?   @map("person_in_charge_id")
+  currentAssigneeId  String?   @map("current_assignee_id")
+  currentAssigneeRoleCode String? @map("current_assignee_role_code")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  customer      Customer          @relation(fields: [customerId], references: [id])
+  project       Project?          @relation(fields: [projectId], references: [id])
+  contact       Contact?          @relation(fields: [contactId], references: [id])
+  personInCharge  Employee?       @relation("EnquiryPic", fields: [personInChargeId], references: [id])
+  currentAssignee Employee?       @relation("EnquiryAssignee", fields: [currentAssigneeId], references: [id])
+  customerOrder CustomerOrder?    @relation(fields: [customerOrderId], references: [id])
+  documents     EnquiryDocument[]
+  activities    EnquiryActivity[]
+  ductLines     EnquiryDuctLine[]
+
+  @@map("enquiries")
+}
+
+model EnquiryDuctLine {
+  id          String   @id @default(cuid())
+  enquiryId   String   @map("enquiry_id")
+  sortOrder   Int      @map("sort_order")
+  tagNo       String   @map("tag_no")
+  description String   @default("OFLINE")
+  width       Int
+  height      Int
+  length      Int
+  quantity    Int
+  area        Decimal? @map("area") @db.Decimal(10, 2)
+  gauge       Int?
+  dai         Decimal? @db.Decimal(10, 3)
+  rmt         Decimal? @db.Decimal(10, 2)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  enquiry Enquiry @relation(fields: [enquiryId], references: [id], onDelete: Cascade)
+
+  @@index([enquiryId, sortOrder])
+  @@map("enquiry_duct_lines")
+}
+
+model EnquiryActivity {
+  id        String   @id @default(cuid())
+  enquiryId String   @map("enquiry_id")
+  timestamp DateTime @default(now())
+  phase     String
+  title     String
+  detail    String?
+  actor     String
+  actorRole String?  @map("actor_role")
+  revision  Int?
+  metadata  Json?
+
+  enquiry Enquiry @relation(fields: [enquiryId], references: [id], onDelete: Cascade)
+
+  @@index([enquiryId, timestamp(sort: Desc)])
+  @@map("enquiry_activities")
+}
+
+model EnquiryDocument {
+  id            String   @id @default(cuid())
+  enquiryId     String   @map("enquiry_id")
+  fileName      String   @map("file_name")
+  filePath      String   @map("file_path")
+  mimeType      String?  @map("mime_type")
+  fileSize      Int?     @map("file_size")
+  inputRevision Int      @default(1) @map("input_revision")
+  isCurrent     Boolean  @default(true) @map("is_current")
+  category      String   @default("drawing") @map("category")
+  uploadedAt    DateTime @default(now()) @map("uploaded_at")
+
+  enquiry Enquiry @relation(fields: [enquiryId], references: [id], onDelete: Cascade)
+
+  @@index([enquiryId, isCurrent])
+  @@index([enquiryId, category])
+  @@map("enquiry_documents")
+}
+
+// ─── Engineering ────────────────────────────────────────────────────────────
+
+model Drawing {
+  id           String   @id @default(cuid())
+  projectId    String   @map("project_id")
+  drawingNo    String   @map("drawing_no")
+  name         String?
+  receivedDate DateTime? @map("received_date")
+  receivedFrom String?  @map("received_from")
+  status       String   @default("RECEIVED")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  project   Project           @relation(fields: [projectId], references: [id])
+  revisions DrawingRevision[]
+
+  @@unique([projectId, drawingNo])
+  @@map("drawings")
+}
+
+model DrawingRevision {
+  id         String   @id @default(cuid())
+  drawingId  String   @map("drawing_id")
+  revision   String
+  filePath   String?  @map("file_path")
+  reason     String?
+  changes    String?
+  uploadedBy String?  @map("uploaded_by")
+  approvedBy String?  @map("approved_by")
+  isCurrent  Boolean  @default(false) @map("is_current")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  drawing Drawing @relation(fields: [drawingId], references: [id], onDelete: Cascade)
+
+  @@map("drawing_revisions")
+}
+
+model DuctSchedule {
+  id          String   @id @default(cuid())
+  projectId   String   @map("project_id")
+  scheduleNo  String   @unique @map("schedule_no")
+  revision    Int      @default(1)
+  status      String   @default("DRAFT")
+  totalQty    Int      @default(0) @map("total_qty")
+  totalArea   Decimal  @default(0) @map("total_area") @db.Decimal(12, 2)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  project        Project            @relation(fields: [projectId], references: [id])
+  items          DuctScheduleItem[]
+  quotations     Quotation[]
+  customerOrders CustomerOrder[]
+
+  @@map("duct_schedules")
+}
+
+model DuctScheduleItem {
+  id             String  @id @default(cuid())
+  ductScheduleId String  @map("duct_schedule_id")
+  tagNo          String  @map("tag_no")
+  description    String  @default("OFLINE")
+  w1             Int
+  h1             Int
+  w2             Int
+  h2             Int
+  length         Int
+  quantity       Int
+  area           Decimal @db.Decimal(10, 2)
+
+  ductSchedule       DuctSchedule        @relation(fields: [ductScheduleId], references: [id], onDelete: Cascade)
+  customerOrderItems CustomerOrderItem[]
+
+  @@map("duct_schedule_items")
+}
+
+// ─── Sales ──────────────────────────────────────────────────────────────────
+
+model Quotation {
+  id             String    @id @default(cuid())
+  quotationNo    String    @unique @map("quotation_no")
+  customerId     String    @map("customer_id")
+  projectId      String?   @map("project_id")
+  ductScheduleId String?   @map("duct_schedule_id")
+  quotationDate  DateTime  @default(now()) @map("quotation_date")
+  validUntil     DateTime? @map("valid_until")
+  paymentTerms   String?   @map("payment_terms")
+  deliveryTerms  String?   @map("delivery_terms")
+  taxAmount      Decimal   @default(0) @map("tax_amount") @db.Decimal(12, 2)
+  discountAmount Decimal   @default(0) @map("discount_amount") @db.Decimal(12, 2)
+  totalAmount    Decimal   @default(0) @map("total_amount") @db.Decimal(12, 2)
+  status         String    @default("DRAFT")
+  revision       Int       @default(1)
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  customer       Customer        @relation(fields: [customerId], references: [id])
+  project        Project?        @relation(fields: [projectId], references: [id])
+  ductSchedule   DuctSchedule?   @relation(fields: [ductScheduleId], references: [id])
+  customerPos    CustomerPo[]
+  customerOrders CustomerOrder[]
+
+  @@map("quotations")
+}
+
+model CustomerPo {
+  id           String    @id @default(cuid())
+  poNumber     String    @map("po_number")
+  quotationId  String?   @map("quotation_id")
+  poDate       DateTime  @map("po_date")
+  poAmount     Decimal?  @map("po_amount") @db.Decimal(12, 2)
+  poQuantity   Int?      @map("po_quantity")
+  paymentTerms String?   @map("payment_terms")
+  deliveryDate DateTime? @map("delivery_date")
+  filePath     String?   @map("file_path")
+  commercialVerified Boolean @default(false) @map("commercial_verified")
+  technicalVerified  Boolean @default(false) @map("technical_verified")
+  status       String    @default("RECEIVED")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  quotation      Quotation?      @relation(fields: [quotationId], references: [id])
+  customerOrders CustomerOrder[]
+
+  @@map("customer_pos")
+}
+
+model CustomerOrder {
+  id             String    @id @default(cuid())
+  orderNo        String    @unique @map("order_no")
+  customerId     String    @map("customer_id")
+  projectId      String?   @map("project_id")
+  quotationId    String?   @map("quotation_id")
+  customerPoId   String?   @map("customer_po_id")
+  ductScheduleId String?   @map("duct_schedule_id")
+  productionDate DateTime? @map("production_date")
+  deliveryDate   DateTime? @map("delivery_date")
+  totalQuantity  Int       @default(0) @map("total_quantity")
+  totalArea      Decimal   @default(0) @map("total_area") @db.Decimal(12, 2)
+  status                 String    @default("CONFIRMED")
+  revision               Int       @default(1)
+  productionApproved     Boolean   @default(false) @map("production_approved")
+  productionApprovedBy   String?   @map("production_approved_by")
+  productionApprovedDate DateTime? @map("production_approved_date")
+  straightDuctsCompleted Boolean   @default(false) @map("straight_ducts_completed")
+  straightDuctsCompletedAt DateTime? @map("straight_ducts_completed_at")
+  straightDuctsCompletedBy String? @map("straight_ducts_completed_by")
+  plasmaDuctsCompleted   Boolean   @default(false) @map("plasma_ducts_completed")
+  plasmaDuctsCompletedAt DateTime? @map("plasma_ducts_completed_at")
+  plasmaDuctsCompletedBy String?   @map("plasma_ducts_completed_by")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+
+  customer            Customer             @relation(fields: [customerId], references: [id])
+  project             Project?             @relation(fields: [projectId], references: [id])
+  quotation           Quotation?           @relation(fields: [quotationId], references: [id])
+  customerPo          CustomerPo?          @relation(fields: [customerPoId], references: [id])
+  ductSchedule        DuctSchedule?        @relation(fields: [ductScheduleId], references: [id])
+  items               CustomerOrderItem[]
+  manufacturingOrders ManufacturingOrder[]
+  dispatches          Dispatch[]
+  enquiry             Enquiry?
+
+  @@map("customer_orders")
+}
+
+model CustomerOrderItem {
+  id                String  @id @default(cuid())
+  customerOrderId   String  @map("customer_order_id")
+  ductScheduleItemId String? @map("duct_schedule_item_id")
+  tagNo             String  @map("tag_no")
+  description       String  @default("OFLINE")
+  w1                Int
+  h1                Int
+  w2                Int
+  h2                Int
+  length            Int
+  orderedQty        Int     @map("ordered_qty")
+  area              Decimal @db.Decimal(10, 2)
+  producedQty       Int     @default(0) @map("produced_qty")
+  readyQty          Int     @default(0) @map("ready_qty")
+  dispatchedQty     Int     @default(0) @map("dispatched_qty")
+
+  customerOrder    CustomerOrder     @relation(fields: [customerOrderId], references: [id], onDelete: Cascade)
+  ductScheduleItem DuctScheduleItem? @relation(fields: [ductScheduleItemId], references: [id])
+  dispatchItems    DispatchItem[]
+  manufacturingItems ManufacturingItem[]
+
+  @@map("customer_order_items")
+}
+
+// ─── Manufacturing ──────────────────────────────────────────────────────────
+
+model ManufacturingOrder {
+  id              String    @id @default(cuid())
+  moNo            String    @unique @map("mo_no")
+  customerOrderId String    @map("customer_order_id")
+  requiredQty     Int       @map("required_qty")
+  requiredArea    Decimal   @map("required_area") @db.Decimal(12, 2)
+  plannedStart    DateTime? @map("planned_start")
+  targetCompletion DateTime? @map("target_completion")
+  status          String    @default("PLANNED")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  customerOrder CustomerOrder       @relation(fields: [customerOrderId], references: [id])
+  items         ManufacturingItem[]
+
+  @@map("manufacturing_orders")
+}
+
+model ManufacturingItem {
+  id                  String @id @default(cuid())
+  manufacturingOrderId String @map("manufacturing_order_id")
+  customerOrderItemId String @map("customer_order_item_id")
+  quantity            Int
+  producedQty         Int    @default(0) @map("produced_qty")
+  completedQty        Int    @default(0) @map("completed_qty")
+  readyQty            Int    @default(0) @map("ready_qty")
+  status              String @default("PLANNED")
+
+  manufacturingOrder ManufacturingOrder @relation(fields: [manufacturingOrderId], references: [id], onDelete: Cascade)
+  customerOrderItem  CustomerOrderItem  @relation(fields: [customerOrderItemId], references: [id])
+
+  @@map("manufacturing_items")
+}
+
+// ─── Dispatch & Delivery ────────────────────────────────────────────────────
+
+model Vehicle {
+  id            String  @id @default(cuid())
+  vehicleNumber String  @unique @map("vehicle_number")
+  vehicleType   String? @map("vehicle_type")
+  transporter   String?
+  capacity      String?
+  active        Boolean @default(true)
+
+  dispatches Dispatch[]
+
+  @@map("vehicles")
+}
+
+model Dispatch {
+  id              String   @id @default(cuid())
+  dispatchNo      String   @unique @map("dispatch_no")
+  customerOrderId String   @map("customer_order_id")
+  vehicleId       String?  @map("vehicle_id")
+  driverName      String?  @map("driver_name")
+  driverMobile    String?  @map("driver_mobile")
+  transporter     String?
+  vehicleType     String?  @map("vehicle_type")
+  vehicleNumber   String?  @map("vehicle_number")
+  loadingDate     DateTime? @map("loading_date")
+  loadingTime     String?  @map("loading_time")
+  lrNumber        String?  @map("lr_number")
+  ewayBillNumber  String?  @map("eway_bill_number")
+  destination     String?
+  remarks         String?
+  totalQuantity   Int      @default(0) @map("total_quantity")
+  totalArea       Decimal  @default(0) @map("total_area") @db.Decimal(12, 2)
+  status          String   @default("LOADING")
+  createdById     String?  @map("created_by_id")
+  dispatchDate    DateTime @default(now()) @map("dispatch_date")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  customerOrder CustomerOrder @relation(fields: [customerOrderId], references: [id])
+  vehicle       Vehicle?      @relation(fields: [vehicleId], references: [id])
+  createdBy     User?         @relation("DispatchCreator", fields: [createdById], references: [id])
+  items         DispatchItem[]
+  delivery      Delivery?
+
+  @@map("dispatches")
+}
+
+model DispatchItem {
+  id                  String  @id @default(cuid())
+  dispatchId          String  @map("dispatch_id")
+  customerOrderItemId String  @map("customer_order_item_id")
+  quantity            Int
+  area                Decimal @db.Decimal(10, 2)
+
+  dispatch          Dispatch          @relation(fields: [dispatchId], references: [id], onDelete: Cascade)
+  customerOrderItem CustomerOrderItem @relation(fields: [customerOrderItemId], references: [id])
+
+  @@map("dispatch_items")
+}
+
+model Delivery {
+  id           String    @id @default(cuid())
+  dispatchId   String    @unique @map("dispatch_id")
+  deliveryDate DateTime? @map("delivery_date")
+  receiver     String?
+  podPath      String?   @map("pod_path")
+  remarks      String?
+  status       String    @default("PENDING")
+
+  dispatch Dispatch @relation(fields: [dispatchId], references: [id])
+
+  @@map("deliveries")
+}
+
+// ─── Workflow Engine ────────────────────────────────────────────────────────
+
+model WorkflowDefinition {
+  id         String   @id @default(cuid())
+  name       String
+  entityType String   @map("entity_type")
+  version    Int      @default(1)
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  states      WorkflowState[]
+  transitions WorkflowTransition[]
+  instances   WorkflowInstance[]
+
+  @@unique([entityType, version])
+  @@map("workflow_definitions")
+}
+
+model WorkflowState {
+  id         String  @id @default(cuid())
+  workflowId String  @map("workflow_id")
+  code       String
+  name       String
+  sequence   Int     @default(0)
+  category   String?
+  color      String?
+  isInitial  Boolean @default(false) @map("is_initial")
+  isFinal    Boolean @default(false) @map("is_final")
+
+  workflow        WorkflowDefinition   @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  transitionsFrom WorkflowTransition[] @relation("FromState")
+  transitionsTo   WorkflowTransition[] @relation("ToState")
+  instances       WorkflowInstance[]
+
+  @@unique([workflowId, code])
+  @@map("workflow_states")
+}
+
+model WorkflowTransition {
+  id          String  @id @default(cuid())
+  workflowId  String  @map("workflow_id")
+  fromStateId String  @map("from_state_id")
+  toStateId   String  @map("to_state_id")
+  actionName  String  @map("action_name")
+  condition   String?
+
+  workflow  WorkflowDefinition @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  fromState WorkflowState      @relation("FromState", fields: [fromStateId], references: [id])
+  toState   WorkflowState      @relation("ToState", fields: [toStateId], references: [id])
+
+  @@map("workflow_transitions")
+}
+
+model WorkflowInstance {
+  id             String   @id @default(cuid())
+  workflowId     String   @map("workflow_id")
+  entityType     String   @map("entity_type")
+  entityId       String   @map("entity_id")
+  currentStateId String   @map("current_state_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  workflow     WorkflowDefinition @relation(fields: [workflowId], references: [id])
+  currentState WorkflowState      @relation(fields: [currentStateId], references: [id])
+  history      WorkflowHistory[]
+
+  @@unique([entityType, entityId])
+  @@map("workflow_instances")
+}
+
+model WorkflowHistory {
+  id                 String   @id @default(cuid())
+  workflowInstanceId String   @map("workflow_instance_id")
+  fromStateCode      String?  @map("from_state_code")
+  toStateCode        String   @map("to_state_code")
+  action             String
+  userId             String?  @map("user_id")
+  remarks            String?
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  workflowInstance WorkflowInstance @relation(fields: [workflowInstanceId], references: [id], onDelete: Cascade)
+  user             User?            @relation(fields: [userId], references: [id])
+
+  @@map("workflow_history")
+}
+
+// ─── Atomic business numbering (multi-instance safe) ─────────────────────────
+
+model BusinessSequence {
+  scope     String   @id
+  nextValue Int      @default(0) @map("next_value")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("business_sequences")
+}
+
+// ─── Audit ──────────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?  @map("user_id")
+  action     String
+  entityType String   @map("entity_type")
+  entityId   String?  @map("entity_id")
+  details    Json?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user User? @relation("AuditActor", fields: [userId], references: [id])
+
+  @@index([entityType, entityId])
+  @@map("audit_logs")
+}

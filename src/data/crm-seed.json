@@ -1,0 +1,134 @@
+{
+  "clients": [
+    {
+      "id": "client-abc",
+      "code": "ABC-CONSTRUCTION",
+      "name": "ABC Construction Pvt Ltd",
+      "city": "Bangalore",
+      "state": "Karnataka",
+      "country": "India",
+      "gstin": "29AABCU9603R1ZM",
+      "active": true,
+      "contacts": [
+        {
+          "id": "contact-rajesh",
+          "customerId": "client-abc",
+          "firstName": "Rajesh",
+          "lastName": "Kumar",
+          "name": "Rajesh Kumar",
+          "designation": "Project Manager",
+          "isPrimary": true,
+          "active": true
+        },
+        {
+          "id": "contact-suresh",
+          "customerId": "client-abc",
+          "firstName": "Suresh",
+          "lastName": "Rao",
+          "name": "Suresh Rao",
+          "designation": "Procurement Head",
+          "isPrimary": false,
+          "active": true
+        },
+        {
+          "id": "contact-anil",
+          "customerId": "client-abc",
+          "firstName": "Anil",
+          "lastName": "Kumar",
+          "name": "Anil Kumar",
+          "designation": "Site Engineer",
+          "isPrimary": false,
+          "active": true
+        },
+        {
+          "id": "contact-priya",
+          "customerId": "client-abc",
+          "firstName": "Priya",
+          "lastName": "Nair",
+          "name": "Priya Nair",
+          "designation": "Finance Manager",
+          "isPrimary": false,
+          "active": true
+        }
+      ],
+      "projects": [
+        {
+          "id": "proj-p001",
+          "customerId": "client-abc",
+          "code": "P-001",
+          "name": "Bangalore Mall",
+          "location": "Bangalore",
+          "status": "ACTIVE"
+        },
+        {
+          "id": "proj-p002",
+          "customerId": "client-abc",
+          "code": "P-002",
+          "name": "Chennai Airport",
+          "location": "Chennai",
+          "status": "ACTIVE"
+        }
+      ]
+    },
+    {
+      "id": "cust-001",
+      "name": "NEW KC",
+      "phone": "+91 98765 43210",
+      "active": true,
+      "contacts": [],
+      "projects": []
+    }
+  ],
+  "projectContacts": {
+    "proj-p001": [
+      {
+        "id": "pc-1",
+        "projectId": "proj-p001",
+        "contactId": "contact-rajesh",
+        "role": "CLIENT_PM",
+        "isPrimary": true,
+        "isActive": true,
+        "contact": {
+          "id": "contact-rajesh",
+          "customerId": "client-abc",
+          "firstName": "Rajesh",
+          "lastName": "Kumar",
+          "name": "Rajesh Kumar",
+          "designation": "Project Manager",
+          "isPrimary": true,
+          "active": true
+        }
+      },
+      {
+        "id": "pc-2",
+        "projectId": "proj-p001",
+        "contactId": "contact-anil",
+        "role": "SITE_ENGINEER",
+        "isPrimary": false,
+        "isActive": true,
+        "contact": {
+          "id": "contact-anil",
+          "customerId": "client-abc",
+          "firstName": "Anil",
+          "lastName": "Kumar",
+          "name": "Anil Kumar",
+          "designation": "Site Engineer",
+          "isPrimary": false,
+          "active": true
+        }
+      }
+    ]
+  },
+  "masters": [
+    { "id": "m1", "category": "CONTACT_ROLE", "code": "CLIENT_PM", "label": "Project Manager", "sortOrder": 1, "active": true },
+    { "id": "m2", "category": "CONTACT_ROLE", "code": "SITE_ENGINEER", "label": "Site Engineer", "sortOrder": 2, "active": true },
+    { "id": "m3", "category": "CONTACT_ROLE", "code": "PURCHASING", "label": "Procurement", "sortOrder": 3, "active": true },
+    { "id": "m4", "category": "CONTACT_ROLE", "code": "ACCOUNTS", "label": "Accounts", "sortOrder": 6, "active": true },
+    { "id": "m5", "category": "ENQUIRY_SOURCE", "code": "EXISTING_CUSTOMER", "label": "Existing Customer", "sortOrder": 1, "active": true },
+    { "id": "m6", "category": "ENQUIRY_SOURCE", "code": "REFERRAL", "label": "Referral", "sortOrder": 2, "active": true },
+    { "id": "m7", "category": "ENQUIRY_PRIORITY", "code": "LOW", "label": "Low", "sortOrder": 1, "active": true },
+    { "id": "m8", "category": "ENQUIRY_PRIORITY", "code": "NORMAL", "label": "Normal", "sortOrder": 2, "active": true },
+    { "id": "m9", "category": "ENQUIRY_PRIORITY", "code": "HIGH", "label": "High", "sortOrder": 3, "active": true },
+    { "id": "m10", "category": "ENQUIRY_PRIORITY", "code": "URGENT", "label": "Urgent", "sortOrder": 4, "active": true }
+  ]
+}

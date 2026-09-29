@@ -1,0 +1,98 @@
+@import "tailwindcss";
+
+@theme {
+  /* Logo-led: teal primary, blue secondary, green for success only */
+  --color-primary: #009888;
+  --color-primary-hover: #007a6d;
+  --color-primary-light: #33ad9e;
+  --color-primary-muted: #e6f5f3;
+
+  --color-secondary: #186898;
+  --color-secondary-hover: #145578;
+  --color-secondary-light: #3d8ab8;
+  --color-secondary-muted: #e8f2f8;
+
+  --color-accent: #009888;
+  --color-brand-teal: #009888;
+  --color-brand-blue: #186898;
+  --color-brand-green: #306830;
+
+  --color-neutral: #5a6d72;
+  --color-background: #f2f8f7;
+  --color-surface: #ffffff;
+  --color-text-primary: #1a2830;
+  --color-text-secondary: #5a6d72;
+  --color-border: #c5d6d6;
+
+  --color-success: #306830;
+  --color-success-bg: #e8f5ef;
+  --color-warning: #186898;
+  --color-warning-bg: #e8f2f8;
+  --color-error: #b91c1c;
+  --color-error-bg: #fdeaea;
+
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+
+  --shadow-level-1: 0 1px 4px rgba(0, 152, 136, 0.08);
+  --shadow-level-2: 0 4px 16px rgba(0, 152, 136, 0.12);
+  --shadow-level-3: 0 12px 32px rgba(24, 104, 152, 0.14);
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-background text-text-primary font-sans antialiased;
+    height: 100%;
+    overflow: hidden;
+    font-feature-settings: "tnum";
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  #root {
+    height: 100%;
+    overflow: hidden;
+  }
+
+  h1 {
+    @apply text-[32px] font-bold leading-tight tracking-tight;
+  }
+
+  h2 {
+    @apply text-2xl font-semibold leading-tight;
+  }
+
+  h3 {
+    @apply text-xl font-semibold leading-tight;
+  }
+}
+
+@layer utilities {
+  .tabular-nums {
+    font-feature-settings: "tnum";
+  }
+
+  .shadow-level-1 {
+    box-shadow: var(--shadow-level-1);
+  }
+
+  .shadow-level-2 {
+    box-shadow: var(--shadow-level-2);
+  }
+
+  .shadow-level-3 {
+    box-shadow: var(--shadow-level-3);
+  }
+}
