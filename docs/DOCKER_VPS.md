@@ -1,5 +1,7 @@
 # Docker on VPS (production)
 
+**One command:** see **[INSTALL_VPS.md](./INSTALL_VPS.md)** (`scripts/install-vps.sh`).
+
 **Local development** stays direct: `npm run dev:all` and optional `npm run db:up` (Postgres only in `docker-compose.yml`).
 
 **VPS** runs the full stack via `docker-compose.prod.yml`:
@@ -47,11 +49,14 @@ git clone https://github.com/smarpuri123/AirconDuctOrder.git .
 
 ---
 
-## 3. Environment file
+## 3. Environment file (not in Git)
+
+Git only contains **`.env.docker.example`**. You create **`.env.docker`** on the VPS (or via GitHub secret `ENV_DOCKER_B64` — see [GITHUB_ACTIONS_VPS.md](./GITHUB_ACTIONS_VPS.md) §3).
 
 ```bash
 cp .env.docker.example .env.docker
 nano .env.docker
+chmod 600 .env.docker
 ```
 
 Set at minimum:

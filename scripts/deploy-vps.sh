@@ -14,10 +14,8 @@ if [[ ! -d .git ]]; then
   exit 1
 fi
 
-if [[ ! -f "$ENV_FILE" ]]; then
-  echo "Missing $ENV_FILE — copy .env.docker.example to $ENV_FILE on the VPS" >&2
-  exit 1
-fi
+export APP_DIR ENV_FILE
+bash "$(dirname "$0")/ensure-env-docker.sh"
 
 if ! command -v docker >/dev/null 2>&1; then
   echo "Docker is not installed. See docs/DOCKER_VPS.md" >&2
