@@ -13,10 +13,11 @@ RUN npm run build
 FROM node:20-alpine
 WORKDIR /app
 ENV NODE_ENV=production
-RUN apk add --no-cache openssl
+RUN apk add --no-cache openssl curl
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev && npm install tsx@4.19.2 --no-save
 COPY prisma ./prisma
+COPY src ./src
 RUN npx prisma generate
 COPY --from=build /app/dist ./dist
 COPY docker/server-entrypoint.sh /entrypoint.sh

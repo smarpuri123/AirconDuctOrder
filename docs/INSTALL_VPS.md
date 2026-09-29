@@ -32,6 +32,17 @@ curl -fsSL https://raw.githubusercontent.com/smarpuri123/AirconDuctOrder/main/sc
 4. Creates `.env.docker` (template, `ECOVENT_*` vars, or `ENV_DOCKER_B64`)
 5. Runs `scripts/deploy-vps.sh` (build + `docker compose up`)
 
+## Bad Gateway (502) on login
+
+Usually the **api** container is not running (often seed failed on first boot).
+
+```bash
+cd /var/www/ecovent
+docker compose -f docker-compose.prod.yml --env-file .env.docker logs api --tail 80
+```
+
+After a successful first login, set `RUN_DB_SEED=false` in `.env.docker` and redeploy so the API starts faster.
+
 ## Updates later
 
 ```bash
