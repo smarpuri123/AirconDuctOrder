@@ -1,5 +1,8 @@
 # ECOVENT — VPS deployment (IP only) & dispatch APK
 
+> **Recommended:** Docker production stack — see **[DOCKER_VPS.md](./DOCKER_VPS.md)**.  
+> Below is the legacy bare-metal guide (PM2 + host Nginx + local Postgres).
+
 **Production URL:** `http://94.136.190.140` (no domain).
 
 Stack: React/Vite admin + mobile routes (`/m/*`), Fastify API, PostgreSQL, uploads in `server/uploads/`.
@@ -197,14 +200,9 @@ Change all seeded passwords before wider use.
 
 ## 7. Updates
 
-**Automated (recommended):** push to `main` on GitHub — see [GITHUB_ACTIONS_VPS.md](./GITHUB_ACTIONS_VPS.md).
+**Docker (recommended):** [DOCKER_VPS.md](./DOCKER_VPS.md) — `./scripts/deploy-vps.sh` or GitHub Actions.
 
-**Manual:**
-
-```bash
-cd /var/www/ecovent
-./scripts/deploy-vps.sh
-```
+**Bare-metal manual:**
 
 Or step-by-step:
 

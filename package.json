@@ -21,6 +21,9 @@
     "db:seed:demo": "npm run db:seed:demo --prefix server",
     "db:init": "npm run db:push && npm run db:seed:demo",
     "db:up": "docker compose up -d",
+    "docker:prod:up": "docker compose -f docker-compose.prod.yml --env-file .env.docker up -d --build",
+    "docker:prod:down": "docker compose -f docker-compose.prod.yml --env-file .env.docker down",
+    "docker:prod:logs": "docker compose -f docker-compose.prod.yml --env-file .env.docker logs -f",
     "db:migrate": "npm run db:migrate --prefix server"
   },
   "dependencies": {

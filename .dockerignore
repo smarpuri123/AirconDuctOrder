@@ -1,0 +1,13 @@
+node_modules
+dist
+server/node_modules
+server/dist
+server/uploads
+.git
+.github
+.playwright-mcp
+*.md
+docs
+.env
+.env.*
+!.env.docker.example

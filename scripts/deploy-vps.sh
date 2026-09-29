@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
-# Run on the VPS after git pull (also invoked by GitHub Actions deploy workflow).
+# VPS deploy: git pull + Docker Compose production stack.
 set -euo pipefail
 
 APP_DIR="${APP_DIR:-/var/www/ecovent}"
 BRANCH="${DEPLOY_BRANCH:-main}"
+COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.prod.yml}"
+ENV_FILE="${ENV_FILE:-.env.docker}"
 
 cd "$APP_DIR"
 
@@ -12,43 +14,29 @@ if [[ ! -d .git ]]; then
   exit 1
 fi
 
+if [[ ! -f "$ENV_FILE" ]]; then
+  echo "Missing $ENV_FILE — copy .env.docker.example to $ENV_FILE on the VPS" >&2
+  exit 1
+fi
+
+if ! command -v docker >/dev/null 2>&1; then
+  echo "Docker is not installed. See docs/DOCKER_VPS.md" >&2
+  exit 1
+fi
+
+COMPOSE=(docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE")
+
 echo "==> Fetch $BRANCH"
 git fetch origin "$BRANCH"
 git reset --hard "origin/$BRANCH"
 
-if [[ ! -f server/.env ]]; then
-  echo "Missing server/.env — create it on the VPS (see docs/DEPLOYMENT_VPS.md)" >&2
-  exit 1
-fi
+echo "==> Build images"
+"${COMPOSE[@]}" build
 
-echo "==> API dependencies & database"
-cd server
-npm ci
-npx prisma generate
-npx prisma db push
-npm run build
+echo "==> Start / update containers"
+"${COMPOSE[@]}" up -d
 
-if command -v pm2 >/dev/null 2>&1; then
-  if pm2 describe ecovent-api >/dev/null 2>&1; then
-    pm2 restart ecovent-api
-  else
-    pm2 start dist/index.js --name ecovent-api
-    pm2 save
-  fi
-else
-  echo "pm2 not found — start API manually: node dist/index.js" >&2
-fi
-
-echo "==> Frontend build"
-cd "$APP_DIR"
-npm ci
-
-if [[ ! -f .env.production ]]; then
-  echo "Warning: .env.production missing; using VITE_USE_API=true VITE_API_URL=/api" >&2
-  export VITE_USE_API=true
-  export VITE_API_URL=/api
-fi
-
-npm run build
+echo "==> Status"
+"${COMPOSE[@]}" ps
 
 echo "==> Deploy finished ($(date -Is))"

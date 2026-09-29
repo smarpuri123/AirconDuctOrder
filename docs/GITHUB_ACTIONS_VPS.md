@@ -2,7 +2,7 @@
 
 Deploys on every push to **`main`** (and manually via **Actions → Deploy to VPS → Run workflow**).
 
-Target stack matches [DEPLOYMENT_VPS.md](./DEPLOYMENT_VPS.md): Nginx serves `dist/`, PM2 runs the API on port 3001, PostgreSQL on the VPS.
+Target stack: **Docker Compose** ([DOCKER_VPS.md](./DOCKER_VPS.md)) — `postgres` + `api` + `web` (Nginx on port 80).
 
 ---
 
@@ -24,9 +24,9 @@ Use a public repo only if you are sure no secrets will ever be committed (`serve
 
 ## 2. One-time VPS setup
 
-Follow [DEPLOYMENT_VPS.md](./DEPLOYMENT_VPS.md) sections 2–5 (Node, Postgres, Nginx, PM2).
+Install **Docker** on the VPS ([DOCKER_VPS.md](./DOCKER_VPS.md) §1). Stop host **Nginx** if it uses port 80.
 
-Then clone **with deploy key or HTTPS** so `git pull` works:
+Clone **with deploy key or HTTPS** so `git pull` works:
 
 ```bash
 sudo mkdir -p /var/www/ecovent
@@ -35,19 +35,19 @@ cd /var/www/ecovent
 git clone git@github.com:smarpuri123/AirconDuctOrder.git .
 ```
 
-Create secrets on the server (not in git):
+Create on the server (not in git):
 
-| File | Purpose |
-|------|---------|
-| `server/.env` | `DATABASE_URL`, `JWT_SECRET`, `CORS_ORIGIN`, etc. |
-| `.env.production` | `VITE_USE_API=true`, `VITE_API_URL=/api` |
+```bash
+cp .env.docker.example .env.docker
+nano .env.docker   # POSTGRES_PASSWORD, JWT_SECRET, CORS_ORIGIN, RUN_DB_SEED=true first time
+```
 
-First deploy manually once:
+First deploy:
 
 ```bash
 chmod +x scripts/deploy-vps.sh
 ./scripts/deploy-vps.sh
-cd server && npm run db:seed && npx tsx prisma/backfill-business-sequences.ts
+# After login works, set RUN_DB_SEED=false in .env.docker and deploy again
 ```
 
 ---
@@ -97,10 +97,8 @@ The workflow uses `environment: production`. In **Settings → Environments → 
 `scripts/deploy-vps.sh` on the VPS:
 
 1. `git fetch` + `reset --hard origin/main`
-2. `server`: `npm ci` → `prisma generate` → `prisma db push` → `npm run build` → `pm2 restart ecovent-api`
-3. Root: `npm ci` → `npm run build` (reads `.env.production`)
-
-Nginx serves the new `dist/` automatically; no Nginx reload needed for static files.
+2. `docker compose -f docker-compose.prod.yml --env-file .env.docker build`
+3. `docker compose ... up -d`
 
 ---
 
@@ -111,7 +109,8 @@ Nginx serves the new `dist/` automatically; no Nginx reload needed for static fi
 | SSH fails in Actions | `VPS_HOST`, user, key, firewall (port 22), `authorized_keys` |
 | `git fetch` fails on VPS | Deploy key on GitHub repo, or HTTPS token in git remote |
 | Empty site after deploy | `npm run build` logs; `dist/index.html` exists |
-| API 502 | `pm2 logs ecovent-api`; `server/.env`; Postgres running |
-| Login CORS errors | `CORS_ORIGIN` in `server/.env` must match browser URL exactly |
+| API 502 | `docker compose ... logs api`; check `.env.docker` |
+| Port 80 in use | Stop host Nginx: `sudo systemctl stop nginx` |
+| Login CORS errors | `CORS_ORIGIN` in `.env.docker` must match browser URL exactly |
 
 CI workflow (`.github/workflows/ci.yml`) runs on PRs and `main` to verify builds before/after merge.

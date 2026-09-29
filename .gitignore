@@ -11,3 +11,4 @@ dist-ssr
 !.env.example
 !.env.production.example
 server/.env
+.env.docker
