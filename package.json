@@ -25,9 +25,16 @@
     "docker:prod:up": "docker compose -f docker-compose.prod.yml --env-file .env.docker up -d --build",
     "docker:prod:down": "docker compose -f docker-compose.prod.yml --env-file .env.docker down",
     "docker:prod:logs": "docker compose -f docker-compose.prod.yml --env-file .env.docker logs -f",
-    "db:migrate": "npm run db:migrate --prefix server"
+    "db:migrate": "npm run db:migrate --prefix server",
+    "cap:sync": "npm run build && npx cap sync android",
+    "cap:open": "npx cap open android",
+    "cap:apk": "npm run cap:sync && cd android && .\\gradlew.bat assembleDebug",
+    "cap:apk:release": "npm run cap:sync && cd android && .\\gradlew.bat assembleRelease"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/cli": "^8.5.2",
+    "@capacitor/core": "^8.5.2",
     "jspdf": "^2.5.2",
     "jspdf-autotable": "^3.8.4",
     "lucide-react": "^0.469.0",

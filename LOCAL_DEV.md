@@ -195,3 +195,29 @@ $env:PDF_LOGIN_USER="admin"
 $env:PDF_LOGIN_PASSWORD="your-password"
 npm run docs:all
 ```
+
+---
+
+## Mobile APK (ECOVENT Dispatch)
+
+Debug installable APK for field dispatchers. The app loads the **live mobile UI** from your VPS (`http://94.136.190.140/m`), so API and UI stay in sync after server deploys (phone needs internet).
+
+**Build (Windows, Android SDK required):**
+
+```powershell
+npm run cap:apk
+```
+
+APK output:
+
+- `android\app\build\outputs\apk\debug\app-debug.apk`
+- Convenience copy: `release\ECOVENT-Dispatch-debug.apk` (gitignored; copy after build)
+
+**Different server:** set `CAPACITOR_SERVER_URL` (no trailing slash), then rebuild:
+
+```powershell
+$env:CAPACITOR_SERVER_URL="http://94.136.190.140"
+npm run cap:apk
+```
+
+On the phone: enable **Install unknown apps** for the app you use to open the APK, then log in with your dispatch user.

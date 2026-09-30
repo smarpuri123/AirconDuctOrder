@@ -2,6 +2,8 @@ node_modules
 server/uploads
 dist
 dist-ssr
+release/
+*.apk
 *.local
 .DS_Store
 
@@ -11,5 +13,6 @@ dist-ssr
 !.env.example
 !.env.production.example
 !.env.docker.example
+!.env.capacitor.example
 server/.env
 .env.docker

@@ -43,7 +43,6 @@ export async function createDispatch(input: CreateDispatchInput) {
       customerOrderItemId: string
       quantity: number
       area: Prisma.Decimal
-      tagNo: string
     }> = []
 
     for (const item of input.items) {
@@ -70,7 +69,6 @@ export async function createDispatch(input: CreateDispatchInput) {
         customerOrderItemId: item.customerOrderItemId,
         quantity: item.quantity,
         area: new Prisma.Decimal(unitArea * item.quantity),
-        tagNo: orderItem.tagNo,
       })
     }
 
@@ -134,8 +132,9 @@ export async function createDispatch(input: CreateDispatchInput) {
     for (const di of dispatchItems) {
       const ok = await incrementDispatchedQtyIfAvailable(tx, di.customerOrderItemId, di.quantity)
       if (!ok) {
+        const orderItem = order.items.find((i) => i.id === di.customerOrderItemId)
         throw new Error(
-          `Cannot dispatch ${di.quantity} for tag ${di.tagNo}. Quantity changed concurrently — refresh and retry.`,
+          `Cannot dispatch ${di.quantity} for tag ${orderItem?.tagNo ?? '?'}. Quantity changed concurrently — refresh and retry.`,
         )
       }
     }
