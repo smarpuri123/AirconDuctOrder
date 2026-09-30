@@ -8,8 +8,8 @@ import { PasswordInput } from '@/components/ui/PasswordInput'
 export function MobileLoginPage() {
   const navigate = useNavigate()
   const { login, loading } = useAuthStore()
-  const [username, setUsername] = useState('dispatch')
-  const [password, setPassword] = useState('dispatch@123')
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
   const [error, setError] = useState('')
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -66,9 +66,6 @@ export function MobileLoginPage() {
             >
               {loading ? 'Signing in…' : 'Sign In'}
             </button>
-            <p className="text-xs text-text-secondary text-center">
-              dispatch / Dispatch@123 (or any seeded user)
-            </p>
           </form>
         ) : (
           <button

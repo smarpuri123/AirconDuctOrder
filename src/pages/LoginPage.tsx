@@ -13,7 +13,6 @@ import { Button } from '@/components/ui/Button'
 
 import { Input } from '@/components/ui/Input'
 import { PasswordInput } from '@/components/ui/PasswordInput'
-import { DEV_LOGIN_USERS } from '@/lib/devLoginUsers'
 
 
 
@@ -23,9 +22,9 @@ export function LoginPage() {
 
   const { login, loading } = useAuthStore()
 
-  const [username, setUsername] = useState('admin')
+  const [username, setUsername] = useState('')
 
-  const [password, setPassword] = useState('admin@123')
+  const [password, setPassword] = useState('')
 
   const [error, setError] = useState('')
 
@@ -123,31 +122,6 @@ export function LoginPage() {
                 {loading ? 'Signing in...' : 'Sign In'}
 
               </Button>
-
-              <div className="rounded-lg border border-border bg-background p-3 text-xs text-text-secondary">
-                <p className="font-medium text-text-primary mb-2 text-center">Demo logins</p>
-                <ul className="space-y-1.5">
-                  {DEV_LOGIN_USERS.map((u) => (
-                    <li key={u.username}>
-                      <button
-                        type="button"
-                        className="w-full flex justify-between gap-2 text-left rounded px-1 py-0.5 hover:bg-primary-muted/40"
-                        onClick={() => {
-                          setUsername(u.username)
-                          setPassword(u.password)
-                          setError('')
-                        }}
-                      >
-                        <span>
-                          <span className="font-mono text-text-primary">{u.username}</span>
-                          <span className="text-text-secondary"> · {u.role}</span>
-                        </span>
-                        <span className="font-mono shrink-0">{u.password}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
 
             </form>
 
