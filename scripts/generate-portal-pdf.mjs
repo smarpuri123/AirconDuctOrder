@@ -2,7 +2,8 @@ import { chromium } from 'playwright'
 import { mkdir, writeFile } from 'fs/promises'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
-import { loginPortal, guideDateLabel } from './pdf-auth.mjs'
+import { loginPortalRole, logoutPortal, guideDateLabel } from './pdf-auth.mjs'
+import { pdfGuideStyles } from './pdf-theme.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const ROOT = join(__dirname, '..')
@@ -10,17 +11,35 @@ const SCREENSHOTS_DIR = join(ROOT, 'docs', 'screenshots')
 const OUTPUT_PDF = join(ROOT, 'docs', 'ECOVENT-Admin-Portal-Guide.pdf')
 const BASE_URL = process.env.PDF_BASE_URL || 'http://localhost:5173'
 
+async function pickFirstDetail(page, listPath, urlRe) {
+  await page.goto(`${BASE_URL}${listPath}`, { waitUntil: 'networkidle' })
+  await page.waitForTimeout(1000)
+  const row = page.locator('main [class*="cursor-pointer"], main table tbody tr').first()
+  if (await row.count()) {
+    await row.click()
+    await page.waitForURL(urlRe, { timeout: 15000 }).catch(() => {})
+    const path = new URL(page.url()).pathname
+    if (urlRe.test(path)) return path
+  }
+  return listPath
+}
+
 async function captureScreenshots(page) {
   const shots = []
 
   async function shot(name, path, options = {}) {
     const file = join(SCREENSHOTS_DIR, `${name}.png`)
     await page.goto(`${BASE_URL}${path}`, { waitUntil: 'networkidle' })
-    await page.waitForTimeout(600)
+    await page.waitForTimeout(700)
     if (options.before) await options.before(page)
     await page.screenshot({ path: file, fullPage: options.fullPage ?? true })
-    shots.push({ name, file: `screenshots/${name}.png`, caption: options.caption ?? name })
-    console.log(`  ✓ ${name}`)
+    shots.push({
+      name,
+      file: `screenshots/${name}.png`,
+      caption: options.caption ?? name,
+      role: options.role,
+    })
+    console.log(`  ✓ ${name}${options.role ? ` (${options.role})` : ''}`)
   }
 
   await page.goto(`${BASE_URL}/login`, { waitUntil: 'networkidle' })
@@ -32,137 +51,174 @@ async function captureScreenshots(page) {
   shots.push({
     name: '01-login',
     file: 'screenshots/01-login.png',
-    caption: 'Login — sign in with username and password provided by your administrator',
+    caption: 'Login — per-user username and password (issued by administrator)',
   })
   console.log('  ✓ 01-login')
 
-  await loginPortal(page, BASE_URL)
+  await loginPortalRole(page, BASE_URL, 'admin')
 
-  await shot('02-dashboard', '/', {
-    caption: 'Dashboard — KPIs, workflow progress, and quick actions (New Enquiry, Create Dispatch)',
+  await shot('02-admin-dashboard', '/', {
+    role: 'Admin',
+    caption: 'Dashboard — KPIs, work queue, and workflow audit (admin / supervisor)',
+    fullPage: false,
   })
 
-  await shot('03-enquiries', '/enquiries', {
-    caption: 'Enquiries list — Card / Grid / Kanban views with stage filters',
+  await shot('03-admin-clients', '/clients', {
+    role: 'Admin / Supervisor',
+    caption: 'Clients — customers, projects, and contacts master data',
   })
 
-  await shot('04-new-enquiry', '/enquiries/new', {
-    caption: 'New Enquiry form — customer, project, assignment, and drawing upload',
+  await shot('04-admin-enquiries', '/enquiries', {
+    role: 'Admin / Supervisor',
+    caption: 'Enquiries — all stages; card, grid, or kanban views',
   })
 
-  let enquiryPath = process.env.PDF_ENQUIRY_PATH || ''
-  if (!enquiryPath) {
-    await page.goto(`${BASE_URL}/enquiries`, { waitUntil: 'networkidle' })
-    await page.waitForTimeout(800)
-    const row = page.locator('main table tbody tr, main [class*="grid"] > div').first()
-    if (await row.count()) {
-      await row.click()
-      await page.waitForURL(/\/enquiries\/[^/]+$/, { timeout: 10000 }).catch(() => {})
-      enquiryPath = new URL(page.url()).pathname
-    }
-  }
-  if (!enquiryPath || enquiryPath.includes('/new')) enquiryPath = '/enquiries'
-
-  await shot('05-enquiry-detail', enquiryPath, {
-    caption: 'Enquiry detail — workflow stepper, design actions, files, and activity history',
+  await shot('05-new-enquiry', '/enquiries/new', {
+    role: 'Supervisor',
+    caption: 'New enquiry — client & project, file upload, person in charge',
   })
 
-  await shot('06-enquiry-activity', enquiryPath, {
-    caption: 'Delivery & Activity History — phased audit trail with actor and revision numbers',
+  let enquiryPath =
+    process.env.PDF_ENQUIRY_PATH ||
+    (await pickFirstDetail(page, '/enquiries', /\/enquiries\/(?!new)[^/]+$/))
+  if (enquiryPath.includes('/new')) enquiryPath = '/enquiries'
+
+  await shot('06-enquiry-detail', enquiryPath, {
+    role: 'Admin / Supervisor',
+    caption: 'Enquiry detail — workflow stepper, accept & assign design, files, actions',
+  })
+
+  await shot('07-enquiry-activity', enquiryPath, {
+    role: 'All roles',
+    caption: 'Activity history — logged-in user name on every handoff',
     before: async (p) => {
       await p.evaluate(() => window.scrollTo(0, document.body.scrollHeight))
-      await p.waitForTimeout(400)
+      await p.waitForTimeout(500)
     },
   })
 
-  await shot('07-orders', '/orders', {
-    caption: 'Orders list — status badges (Ready = blue, Fully Dispatched = green)',
+  await logoutPortal(page, BASE_URL)
+  await loginPortalRole(page, BASE_URL, 'designer')
+
+  await shot('08-designer-enquiries', '/enquiries', {
+    role: 'Designer',
+    caption: 'Designer inbox — only enquiries assigned as design in-charge',
+    fullPage: false,
   })
 
-  let orderPath = process.env.PDF_ORDER_PATH || ''
-  if (!orderPath) {
-    await page.goto(`${BASE_URL}/orders`, { waitUntil: 'networkidle' })
-    await page.waitForTimeout(800)
-    const row = page.locator('main table tbody tr, main [class*="grid"] > div').first()
-    if (await row.count()) {
-      await row.click()
-      await page.waitForURL(/\/orders\/[^/]+$/, { timeout: 10000 }).catch(() => {})
-      orderPath = new URL(page.url()).pathname
-    }
+  await logoutPortal(page, BASE_URL)
+  await loginPortalRole(page, BASE_URL, 'accounts')
+
+  await shot('09-accounts-enquiries', '/enquiries', {
+    role: 'Accounts',
+    caption: 'Accounts view — approval processing and PO workflow stages',
+    fullPage: false,
+  })
+
+  await logoutPortal(page, BASE_URL)
+  await loginPortalRole(page, BASE_URL, 'production')
+
+  await shot('10-production-orders', '/orders', {
+    role: 'Production',
+    caption: 'Orders — manufacturing status and production actions',
+  })
+
+  let orderPath =
+    process.env.PDF_ORDER_PATH ||
+    (await pickFirstDetail(page, '/orders', /\/orders\/[^/]+$/))
+  if (orderPath === '/orders') orderPath = '/orders'
+
+  await shot('11-order-detail', orderPath, {
+    role: 'Production',
+    caption: 'Order detail — production approval, progress, dispatch trips',
+  })
+
+  await logoutPortal(page, BASE_URL)
+  await loginPortalRole(page, BASE_URL, 'admin')
+
+  if (!orderPath.startsWith('/orders/') || orderPath === '/orders') {
+    orderPath = await pickFirstDetail(page, '/orders', /\/orders\/[^/]+$/)
   }
-  if (!orderPath) orderPath = '/orders'
 
-  await shot('08-order-detail', orderPath, {
-    caption: 'Order detail — manufacturing progress, production approval, and dispatch trips',
+  await shot('12-create-dispatch', `${orderPath}/dispatch`, {
+    role: 'Admin',
+    caption: 'Create dispatch — + / − quantity per duct tag',
   })
 
-  await shot('09-create-dispatch', `${orderPath}/dispatch`, {
-    caption: 'Create dispatch — select items with + / − quantity controls per tag',
-  })
+  try {
+    await page.goto(`${BASE_URL}${orderPath}/dispatch`, { waitUntil: 'networkidle' })
+    await page.waitForTimeout(600)
+    const plusButtons = page.locator('button[aria-label="Increase quantity"]')
+    const count = await plusButtons.count()
+    for (let i = 0; i < Math.min(count, 3); i++) {
+      await plusButtons.nth(i).click()
+      await page.waitForTimeout(150)
+    }
+    const continueBtn = page.getByRole('button', { name: 'Continue to Vehicle Details' })
+    if (await continueBtn.isEnabled().catch(() => false)) {
+      await continueBtn.click()
+      await page.waitForURL('**/dispatch/vehicle', { timeout: 15000 })
+      await page.waitForTimeout(500)
 
-  await page.goto(`${BASE_URL}${orderPath}/dispatch`)
-  await page.waitForTimeout(400)
-  const plusButtons = page.locator('button[aria-label="Increase quantity"]')
-  const count = await plusButtons.count()
-  if (count > 0) await plusButtons.first().click()
-  if (count > 2) await plusButtons.nth(2).click()
-  await page.getByRole('button', { name: 'Continue to Vehicle Details' }).click()
-  await page.waitForURL('**/dispatch/vehicle')
-  await page.waitForTimeout(500)
+      await page.screenshot({
+        path: join(SCREENSHOTS_DIR, '13-vehicle-details.png'),
+        fullPage: true,
+      })
+      shots.push({
+        name: '13-vehicle-details',
+        file: 'screenshots/13-vehicle-details.png',
+        caption: 'Vehicle details — driver, transporter, and loading information',
+        role: 'Admin',
+      })
+      console.log('  ✓ 13-vehicle-details')
 
-  await page.screenshot({
-    path: join(SCREENSHOTS_DIR, '10-vehicle-details.png'),
-    fullPage: true,
-  })
-  shots.push({
-    name: '10-vehicle-details',
-    file: 'screenshots/10-vehicle-details.png',
-    caption: 'Vehicle details — driver, transporter, and loading information',
-  })
-  console.log('  ✓ 10-vehicle-details')
+      await page.getByLabel(/Vehicle Number/i).fill('AP02AB1234')
+      await page.getByLabel(/Driver Name/i).fill('Ramesh')
+      await page.getByLabel(/Driver Mobile/i).fill('9876543210')
+      await page.getByLabel(/Transporter/i).fill('ABC Transport')
+      await page.getByRole('button', { name: 'Preview Dispatch' }).click()
+      await page.waitForURL('**/dispatch/preview', { timeout: 15000 })
+      await page.waitForTimeout(500)
 
-  await page.getByLabel(/Vehicle Number/i).fill('AP02AB1234')
-  await page.getByLabel(/Driver Name/i).fill('Ramesh')
-  await page.getByLabel(/Driver Mobile/i).fill('9876543210')
-  await page.getByLabel(/Transporter/i).fill('ABC Transport')
-  await page.getByRole('button', { name: 'Preview Dispatch' }).click()
-  await page.waitForURL('**/dispatch/preview')
-  await page.waitForTimeout(500)
+      await page.screenshot({
+        path: join(SCREENSHOTS_DIR, '14-dispatch-preview.png'),
+        fullPage: true,
+      })
+      shots.push({
+        name: '14-dispatch-preview',
+        file: 'screenshots/14-dispatch-preview.png',
+        caption: 'Dispatch preview — review quantities before confirming trip',
+        role: 'Admin',
+      })
+      console.log('  ✓ 14-dispatch-preview')
+    } else {
+      console.warn('  ⚠ Dispatch wizard skipped (no qty selected — seed demo orders?)')
+    }
+  } catch (err) {
+    console.warn('  ⚠ Dispatch wizard screenshots skipped:', err.message)
+  }
 
-  await page.screenshot({
-    path: join(SCREENSHOTS_DIR, '11-dispatch-preview.png'),
-    fullPage: true,
-  })
-  shots.push({
-    name: '11-dispatch-preview',
-    file: 'screenshots/11-dispatch-preview.png',
-    caption: 'Dispatch preview — review quantities before confirming trip',
-  })
-  console.log('  ✓ 11-dispatch-preview')
-
-  await shot('12-dispatch-list', '/dispatch', {
+  await shot('15-dispatch-list', '/dispatch', {
+    role: 'Admin',
     caption: 'Dispatch history — all vehicle trips across orders',
   })
 
   let dispatchPath = process.env.PDF_DISPATCH_PATH || ''
   if (!dispatchPath) {
-    await page.goto(`${BASE_URL}/dispatch`, { waitUntil: 'networkidle' })
-    await page.waitForTimeout(800)
-    const row = page.locator('main table tbody tr, main [class*="grid"] > div').first()
-    if (await row.count()) {
-      await row.click()
-      await page.waitForURL(/\/dispatch\/[^/]+$/, { timeout: 10000 }).catch(() => {})
-      dispatchPath = new URL(page.url()).pathname
-    }
+    dispatchPath = await pickFirstDetail(page, '/dispatch', /\/dispatch\/[^/]+$/)
   }
-  if (!dispatchPath) dispatchPath = '/dispatch'
+  if (dispatchPath === '/dispatch') dispatchPath = '/dispatch'
 
-  await shot('13-dispatch-note', dispatchPath, {
-    caption: 'Dispatch note — printable document with item table and signatures',
-  })
+  if (dispatchPath.startsWith('/dispatch/')) {
+    await shot('16-dispatch-note', dispatchPath, {
+      role: 'Admin',
+      caption: 'Dispatch note — printable document with item table and signatures',
+    })
+  }
 
-  await shot('14-settings', '/settings', {
-    caption: 'Settings — demo reset and application information',
+  await shot('17-settings', '/settings', {
+    role: 'Admin',
+    caption: 'Settings — application information',
   })
 
   return shots
@@ -174,6 +230,7 @@ function buildHtml(shots) {
     .map(
       (s) => `
     <section class="screen">
+      ${s.role ? `<p class="role-label">${s.role}</p>` : ''}
       <h3>${s.caption}</h3>
       <img src="${s.file}" alt="${s.caption}" />
     </section>`,
@@ -186,153 +243,7 @@ function buildHtml(shots) {
   <meta charset="UTF-8" />
   <title>ECOVENT Operations — User Guide</title>
   <style>
-    @page { margin: 20mm 15mm; size: A4; }
-    * { box-sizing: border-box; }
-    body {
-      font-family: 'Segoe UI', Inter, Arial, sans-serif;
-      color: #1a1a2e;
-      line-height: 1.55;
-      font-size: 11pt;
-      margin: 0;
-      padding: 0;
-    }
-    .cover {
-      page-break-after: always;
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      text-align: center;
-      background: linear-gradient(180deg, #003087 0%, #00246b 100%);
-      color: white;
-      padding: 40px;
-    }
-    .cover h1 { font-size: 32pt; margin: 0 0 8px; letter-spacing: -0.02em; }
-    .cover .tagline { font-size: 14pt; opacity: 0.9; margin-bottom: 40px; }
-    .cover .meta { font-size: 11pt; opacity: 0.75; line-height: 1.8; }
-    .cover .badge {
-      display: inline-block;
-      background: #f5ba2e;
-      color: #1a1a2e;
-      padding: 8px 20px;
-      border-radius: 20px;
-      font-weight: 600;
-      margin-top: 32px;
-      font-size: 10pt;
-    }
-    h2 {
-      color: #003087;
-      font-size: 18pt;
-      border-bottom: 2px solid #003087;
-      padding-bottom: 6px;
-      margin-top: 28px;
-      page-break-after: avoid;
-    }
-    h3 { color: #003087; font-size: 12pt; margin-top: 20px; page-break-after: avoid; }
-    h4 { color: #687173; font-size: 11pt; margin-top: 16px; }
-    p { margin: 8px 0; }
-    ul, ol { margin: 8px 0; padding-left: 22px; }
-    li { margin: 4px 0; }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin: 12px 0;
-      font-size: 9.5pt;
-    }
-    th {
-      background: #003087;
-      color: white;
-      text-align: left;
-      padding: 8px 10px;
-    }
-    td {
-      border-bottom: 1px solid #cbd2d6;
-      padding: 8px 10px;
-      vertical-align: top;
-    }
-    .highlight {
-      background: #f5f7fa;
-      border-left: 4px solid #003087;
-      padding: 12px 16px;
-      margin: 16px 0;
-      border-radius: 0 8px 8px 0;
-    }
-    .badge-blue {
-      display: inline-block;
-      background: rgba(0,48,135,0.1);
-      color: #003087;
-      padding: 2px 8px;
-      border-radius: 12px;
-      font-size: 9pt;
-      font-weight: 600;
-    }
-    .badge-green {
-      display: inline-block;
-      background: #e6f4ea;
-      color: #019c34;
-      padding: 2px 8px;
-      border-radius: 12px;
-      font-size: 9pt;
-      font-weight: 600;
-    }
-    .badge-orange {
-      display: inline-block;
-      background: #fff8e1;
-      color: #c49000;
-      padding: 2px 8px;
-      border-radius: 12px;
-      font-size: 9pt;
-      font-weight: 600;
-    }
-    .screen {
-      page-break-inside: avoid;
-      margin: 24px 0 32px;
-    }
-    .screen img {
-      width: 100%;
-      border: 1px solid #cbd2d6;
-      border-radius: 8px;
-      box-shadow: 0 4px 16px rgba(0,48,135,0.1);
-      margin-top: 8px;
-    }
-    .screen h3 {
-      font-size: 11pt;
-      color: #687173;
-      font-weight: 600;
-      margin-bottom: 4px;
-    }
-    .toc { page-break-after: always; }
-    .toc li { margin: 6px 0; }
-    .footer-note {
-      font-size: 9pt;
-      color: #687173;
-      text-align: center;
-      margin-top: 40px;
-      border-top: 1px solid #cbd2d6;
-      padding-top: 12px;
-    }
-    .section { page-break-before: auto; }
-    .screens-section { page-break-before: always; }
-    .flow-step {
-      display: flex;
-      gap: 12px;
-      margin: 8px 0;
-      align-items: flex-start;
-    }
-    .flow-num {
-      background: #003087;
-      color: white;
-      width: 24px;
-      height: 24px;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 9pt;
-      font-weight: 700;
-      flex-shrink: 0;
-    }
+    ${pdfGuideStyles()}
   </style>
 </head>
 <body>
@@ -528,7 +439,7 @@ function buildHtml(shots) {
 
   <div class="screens-section">
     <h2>9. Screen Guide</h2>
-    <p>Screenshots captured from the live application at generation time.</p>
+    <p>Screenshots from the current teal-themed portal. Role badges show separate logins (admin, designer, accounts, production) — each user sees only permitted menus and data.</p>
     ${shotBlocks}
   </div>
 
@@ -580,7 +491,7 @@ async function main() {
     shots = await captureScreenshots(page)
   } catch (err) {
     console.error('Screenshot capture failed:', err.message)
-    console.error('Ensure the dev server is running: npm run dev')
+    console.error('Ensure API + web are running: npm run dev:all (and db:seed:demo for sample orders)')
     await browser.close()
     process.exit(1)
   }

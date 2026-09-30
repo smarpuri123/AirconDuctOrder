@@ -4,11 +4,12 @@
   <meta charset="UTF-8" />
   <title>ECOVENT Operations — User Guide</title>
   <style>
+    
     @page { margin: 20mm 15mm; size: A4; }
     * { box-sizing: border-box; }
     body {
       font-family: 'Segoe UI', Inter, Arial, sans-serif;
-      color: #1a1a2e;
+      color: #1a2830;
       line-height: 1.55;
       font-size: 11pt;
       margin: 0;
@@ -22,17 +23,17 @@
       justify-content: center;
       align-items: center;
       text-align: center;
-      background: linear-gradient(180deg, #003087 0%, #00246b 100%);
+      background: linear-gradient(180deg, #009888 0%, #007a6d 100%);
       color: white;
       padding: 40px;
     }
     .cover h1 { font-size: 32pt; margin: 0 0 8px; letter-spacing: -0.02em; }
-    .cover .tagline { font-size: 14pt; opacity: 0.9; margin-bottom: 40px; }
-    .cover .meta { font-size: 11pt; opacity: 0.75; line-height: 1.8; }
+    .cover .tagline { font-size: 14pt; opacity: 0.95; margin-bottom: 40px; }
+    .cover .meta { font-size: 11pt; opacity: 0.85; line-height: 1.8; }
     .cover .badge {
       display: inline-block;
       background: #f5ba2e;
-      color: #1a1a2e;
+      color: #1a2830;
       padding: 8px 20px;
       border-radius: 20px;
       font-weight: 600;
@@ -40,15 +41,15 @@
       font-size: 10pt;
     }
     h2 {
-      color: #003087;
+      color: #009888;
       font-size: 18pt;
-      border-bottom: 2px solid #003087;
+      border-bottom: 2px solid #009888;
       padding-bottom: 6px;
       margin-top: 28px;
       page-break-after: avoid;
     }
-    h3 { color: #003087; font-size: 12pt; margin-top: 20px; page-break-after: avoid; }
-    h4 { color: #687173; font-size: 11pt; margin-top: 16px; }
+    h3 { color: #186898; font-size: 12pt; margin-top: 20px; page-break-after: avoid; }
+    h4 { color: #5a6d72; font-size: 11pt; margin-top: 16px; }
     p { margin: 8px 0; }
     ul, ol { margin: 8px 0; padding-left: 22px; }
     li { margin: 4px 0; }
@@ -59,27 +60,27 @@
       font-size: 9.5pt;
     }
     th {
-      background: #003087;
+      background: #009888;
       color: white;
       text-align: left;
       padding: 8px 10px;
     }
     td {
-      border-bottom: 1px solid #cbd2d6;
+      border-bottom: 1px solid #c5d6d6;
       padding: 8px 10px;
       vertical-align: top;
     }
     .highlight {
-      background: #f5f7fa;
-      border-left: 4px solid #003087;
+      background: #f2f8f7;
+      border-left: 4px solid #009888;
       padding: 12px 16px;
       margin: 16px 0;
       border-radius: 0 8px 8px 0;
     }
     .badge-blue {
       display: inline-block;
-      background: rgba(0,48,135,0.1);
-      color: #003087;
+      background: #e8f2f8;
+      color: #186898;
       padding: 2px 8px;
       border-radius: 12px;
       font-size: 9pt;
@@ -87,8 +88,8 @@
     }
     .badge-green {
       display: inline-block;
-      background: #e6f4ea;
-      color: #019c34;
+      background: #e8f5ef;
+      color: #306830;
       padding: 2px 8px;
       border-radius: 12px;
       font-size: 9pt;
@@ -103,31 +104,38 @@
       font-size: 9pt;
       font-weight: 600;
     }
-    .screen {
-      page-break-inside: avoid;
-      margin: 24px 0 32px;
-    }
+    .screen { page-break-inside: avoid; margin: 24px 0 32px; }
     .screen img {
       width: 100%;
-      border: 1px solid #cbd2d6;
+      border: 1px solid #c5d6d6;
       border-radius: 8px;
-      box-shadow: 0 4px 16px rgba(0,48,135,0.1);
+      box-shadow: 0 4px 16px rgba(0, 152, 136, 0.12);
       margin-top: 8px;
     }
     .screen h3 {
       font-size: 11pt;
-      color: #687173;
+      color: #5a6d72;
       font-weight: 600;
       margin-bottom: 4px;
+    }
+    .role-label {
+      display: inline-block;
+      background: #009888;
+      color: white;
+      font-size: 9pt;
+      font-weight: 600;
+      padding: 2px 10px;
+      border-radius: 12px;
+      margin-bottom: 6px;
     }
     .toc { page-break-after: always; }
     .toc li { margin: 6px 0; }
     .footer-note {
       font-size: 9pt;
-      color: #687173;
+      color: #5a6d72;
       text-align: center;
       margin-top: 40px;
-      border-top: 1px solid #cbd2d6;
+      border-top: 1px solid #c5d6d6;
       padding-top: 12px;
     }
     .section { page-break-before: auto; }
@@ -139,7 +147,7 @@
       align-items: flex-start;
     }
     .flow-num {
-      background: #003087;
+      background: #009888;
       color: white;
       width: 24px;
       height: 24px;
@@ -151,6 +159,7 @@
       font-weight: 700;
       flex-shrink: 0;
     }
+  
   </style>
 </head>
 <body>
@@ -161,7 +170,7 @@
     <p class="meta">
       ECOVENT AIR SYSTEMS INDIA LLP<br/>
       Quality Ducts Is Our Business<br/><br/>
-      Version 2.0 Demo &nbsp;|&nbsp; 19 September 2026
+      Version 3.0 &nbsp;|&nbsp; 30 September 2026
     </p>
     <span class="badge">Enquiry → Design → Order → Manufacture → Dispatch</span>
   </div>
@@ -169,56 +178,65 @@
   <div class="toc">
     <h2>Table of Contents</h2>
     <ol>
-      <li>Overview</li>
+      <li>Overview &amp; Access</li>
+      <li>User Roles</li>
       <li>End-to-End Workflow</li>
       <li>Navigation &amp; Display Views</li>
       <li>Creating a New Enquiry</li>
-      <li>Design Review &amp; Revision Phases</li>
-      <li>Production Tracking &amp; Activity Log</li>
+      <li>Design &amp; Accounts Workflow</li>
+      <li>Production &amp; Activity Log</li>
       <li>Order &amp; Dispatch</li>
       <li>Screen Guide (with screenshots)</li>
-      <li>Sample Enquiry Activity Log</li>
       <li>Status Reference</li>
     </ol>
   </div>
 
   <div class="section">
-    <h2>1. Overview</h2>
-    <p>ECOVENT Operations is a browser-based portal for managing the full duct manufacturing lifecycle — from customer enquiry through design review, order confirmation, production, and multi-trip dispatch.</p>
+    <h2>1. Overview &amp; Access</h2>
+    <p>ECOVENT Operations is a browser-based portal for managing the full duct manufacturing lifecycle — from customer enquiry through design review, accounts approval, order confirmation, production, and multi-trip dispatch.</p>
     <div class="highlight">
       <strong>Key principle: Enquiry ≠ Order ≠ Dispatch</strong><br/>
       A customer enquiry captures intent and drawings. An order is created only after design approval. Each vehicle trip is a separate dispatch. One order can have many dispatch trips until fully delivered.
     </div>
+    <p>Open the URL provided by your administrator (e.g. <em>https://your-server/login</em>). Enter your <strong>username</strong> and <strong>password</strong>. Credentials are issued per user; they are not displayed on the login page. Use <strong>Sign out</strong> in the header when finished.</p>
+  </div>
+
+  <div class="section">
+    <h2>2. User Roles</h2>
+    <p>Each login has one or more roles. Menus and records are filtered automatically.</p>
     <table>
-      <tr><th>Role</th><th>Primary Use</th></tr>
-      <tr><td>Sales</td><td>Create enquiries, upload drawings, track customer projects</td></tr>
-      <tr><td>Design Engineer</td><td>Extract duct schedule, manage revision phases, approve design</td></tr>
-      <tr><td>Production Manager</td><td>Approve production start, log progress, mark ready for dispatch</td></tr>
-      <tr><td>Dispatch Coordinator</td><td>Create dispatch trips, vehicle details, share dispatch notes</td></tr>
+      <tr><th>Role</th><th>Access</th><th>Typical tasks</th></tr>
+      <tr><td>Admin</td><td>Full portal</td><td>All modules, clients, users, settings</td></tr>
+      <tr><td>Supervisor</td><td>Full portal</td><td>Create enquiries, assign design, oversight</td></tr>
+      <tr><td>Designer</td><td>Assigned enquiries</td><td>Design review, Excel import, submit to accounts</td></tr>
+      <tr><td>Accounts</td><td>Enquiries (approval)</td><td>PO workflow, approve design, return to design</td></tr>
+      <tr><td>Production</td><td>Orders</td><td>Production approval and progress</td></tr>
+      <tr><td>Dispatcher</td><td>Mobile app only</td><td>Field dispatch (see Mobile Dispatch guide)</td></tr>
     </table>
-    <p>To access the portal, open the login screen and click <strong>Enter Demo</strong>. Use the <strong>Acting as</strong> selector in the header to record who performs each action.</p>
+    <p>Activity history records the <strong>signed-in user</strong> for every action (not a separate “acting as” selector).</p>
   </div>
 
   <div class="section">
-    <h2>2. End-to-End Workflow</h2>
-    <div class="flow-step"><span class="flow-num">1</span><div><strong>New Enquiry</strong> — capture customer, project, and drawing details. No order is created at this stage.</div></div>
-    <div class="flow-step"><span class="flow-num">2</span><div><strong>Design Review</strong> — engineer extracts duct tags, quantity, and area. Multiple revision phases supported (Rev 01, Rev 02…).</div></div>
-    <div class="flow-step"><span class="flow-num">3</span><div><strong>Approve Design</strong> — design must be saved and approved before order conversion.</div></div>
-    <div class="flow-step"><span class="flow-num">4</span><div><strong>Convert to Order</strong> — creates a production order linked to the enquiry.</div></div>
-    <div class="flow-step"><span class="flow-num">5</span><div><strong>Production</strong> — production manager approves start, logs progress updates, marks ready for dispatch.</div></div>
-    <div class="flow-step"><span class="flow-num">6</span><div><strong>Dispatch Trips</strong> — create one or more vehicle dispatches until balance reaches zero.</div></div>
-    <p>Every step is recorded in the <strong>Delivery &amp; Activity History</strong> with the person name, role, timestamp, and phase.</p>
+    <h2>3. End-to-End Workflow</h2>
+    <div class="flow-step"><span class="flow-num">1</span><div><strong>New Enquiry</strong> — supervisor/admin selects client &amp; project, uploads customer files.</div></div>
+    <div class="flow-step"><span class="flow-num">2</span><div><strong>Accept &amp; assign design</strong> — intake completed; design engineer assigned (designer inbox).</div></div>
+    <div class="flow-step"><span class="flow-num">3</span><div><strong>Design review</strong> — duct extraction, Excel import, revisions (Rev 01, 02…); submit to accounts.</div></div>
+    <div class="flow-step"><span class="flow-num">4</span><div><strong>Accounts / PO</strong> — review and approve design for manufacturing.</div></div>
+    <div class="flow-step"><span class="flow-num">5</span><div><strong>Convert to order</strong> — production order linked to the enquiry.</div></div>
+    <div class="flow-step"><span class="flow-num">6</span><div><strong>Production &amp; dispatch</strong> — shop floor progress; one or more vehicle trips until balance is zero.</div></div>
+    <p>Every step appears in <strong>Delivery &amp; Activity History</strong> with user name, role, timestamp, and revision/trip where applicable.</p>
   </div>
 
   <div class="section">
-    <h2>3. Navigation &amp; Display Views</h2>
+    <h2>4. Navigation &amp; Display Views</h2>
     <table>
-      <tr><th>Menu</th><th>Purpose</th></tr>
-      <tr><td>Dashboard</td><td>KPIs, featured enquiry workflow, recent enquiries and dispatches</td></tr>
-      <tr><td>Enquiries</td><td>All customer enquiries with stage filters and view modes</td></tr>
-      <tr><td>Orders</td><td>Manufacturing orders ready for or in dispatch</td></tr>
-      <tr><td>Dispatch</td><td>All vehicle trips across orders</td></tr>
-      <tr><td>Settings</td><td>Demo reset and application information</td></tr>
+      <tr><th>Menu</th><th>Who</th><th>Purpose</th></tr>
+      <tr><td>Dashboard</td><td>Admin, Supervisor</td><td>KPIs, work queue, workflow audit</td></tr>
+      <tr><td>Clients</td><td>Admin, Supervisor</td><td>Customers, projects, contacts</td></tr>
+      <tr><td>Enquiries</td><td>Most office roles</td><td>Pipeline by stage; designers see assigned items</td></tr>
+      <tr><td>Orders</td><td>Admin, Supervisor, Production</td><td>Manufacturing and dispatch readiness</td></tr>
+      <tr><td>Dispatch</td><td>Admin, Supervisor</td><td>All vehicle trips (desktop)</td></tr>
+      <tr><td>Settings</td><td>Admin</td><td>Application information</td></tr>
     </table>
     <h3>Toolbar Actions (per screen)</h3>
     <table>
@@ -230,20 +248,18 @@
     </table>
     <h3>Display Views</h3>
     <p>On Enquiries, Orders, and Dispatch lists, switch between <strong>Cards</strong>, <strong>Grid</strong>, and <strong>Kanban</strong>. Your preference is saved in the browser.</p>
-    <h3>Acting as</h3>
-    <p>The header dropdown lets you select the current user: Karthik S (Sales), Priya N (Design Engineer), Ravi M (Production Manager), or Suresh K (Dispatch Coordinator). All logged actions use this identity.</p>
+    <h3>Header</h3>
+    <p><strong>Notifications</strong> (bell) and <strong>user menu</strong> (name + sign out) are in the top bar on every screen.</p>
   </div>
 
   <div class="section">
-    <h2>4. Creating a New Enquiry</h2>
-    <p>Click <strong>New Enquiry</strong> from the Dashboard or Enquiries screen. This opens the enquiry form at <em>/enquiries/new</em> — not an existing record.</p>
-    <h3>Customer Details</h3>
+    <h2>5. Creating a New Enquiry</h2>
+    <p><strong>Admin / Supervisor:</strong> click <strong>New Enquiry</strong> from the Dashboard or Enquiries screen. Select an existing <strong>client</strong> and <strong>project</strong> from the directory (or add clients under <strong>Clients</strong> first).</p>
+    <h3>Customer &amp; contact</h3>
     <table>
       <tr><th>Field</th><th>Required</th><th>Description</th></tr>
-      <tr><td>Customer Name</td><td>Yes</td><td>Company or client name</td></tr>
-      <tr><td>Contact Person</td><td>Yes</td><td>Primary site contact</td></tr>
-      <tr><td>Phone</td><td>Yes</td><td>Contact number</td></tr>
-      <tr><td>Email</td><td>No</td><td>Contact email</td></tr>
+      <tr><td>Client / project</td><td>Yes</td><td>From client master data</td></tr>
+      <tr><td>Contact</td><td>Optional</td><td>Site contact from client record</td></tr>
     </table>
     <h3>Project Details</h3>
     <table>
@@ -261,12 +277,12 @@
       <tr><td>Source</td><td>No</td><td>Existing Customer, Referral, Website, etc.</td></tr>
       <tr><td>Remarks</td><td>No</td><td>Scope notes, urgency, site constraints</td></tr>
     </table>
-    <h3>Drawing Attachment</h3>
-    <p>Upload customer drawing (PDF, DWG, DXF, Excel, or image). In demo mode the filename is stored. On submit, the system:</p>
+    <h3>Client input files</h3>
+    <p>Upload customer drawings (PDF, images, Excel, etc.) on the create form or on the enquiry detail page. On submit:</p>
     <ul>
-      <li>Generates a unique enquiry number (e.g. ENQ-2026-0006)</li>
-      <li>Logs <em>Enquiry created</em> and <em>Drawing uploaded</em> in activity history</li>
-      <li>Navigates to the enquiry detail page for design review</li>
+      <li>Generates a structured enquiry number (client + project sequence)</li>
+      <li>Logs <em>Enquiry created</em> and file upload in activity history</li>
+      <li>Opens the enquiry detail page for intake and design handoff</li>
     </ul>
     <div class="highlight">
       <strong>Important:</strong> No manufacturing order is created when the enquiry is submitted. The order is created only after design approval and explicit conversion.
@@ -274,22 +290,26 @@
   </div>
 
   <div class="section">
-    <h2>5. Design Review &amp; Revision Phases</h2>
-    <p>On the enquiry detail page, the workflow stepper shows progress through Enquiry → Design Review → Order → Manufacturing → Dispatch.</p>
-    <h3>Design workflow</h3>
+    <h2>6. Design &amp; Accounts Workflow</h2>
+    <p>The workflow stepper shows Enquiry → Design Review → Order → Manufacturing → Dispatch.</p>
+    <h3>Supervisor / intake</h3>
+    <p><strong>Accept &amp; assign to design</strong> completes intake and assigns the design in-charge in one step.</p>
+    <h3>Designer</h3>
     <ol>
-      <li><strong>Start Design Review</strong> — begins Rev 01 extraction phase</li>
-      <li><strong>Save Duct Extraction</strong> — enter duct tags, total quantity, total area (m²), and notes</li>
-      <li><strong>Approve Design</strong> — locks extraction; logs approver name and date</li>
-      <li><strong>Request Revision</strong> (optional) — sales or engineer requests changes with a reason; status becomes Revision Needed</li>
-      <li><strong>Start Next Revision Phase</strong> — increments to Rev 02, Rev 03, etc.</li>
-      <li><strong>Convert to Order</strong> — available only when design is approved</li>
+      <li>Import duct schedule (Excel) or enter extraction totals</li>
+      <li>Request revision (during in-review) if scope changes</li>
+      <li><strong>Submit to accounts</strong> when engineering sign-off is ready</li>
     </ol>
-    <p>Each design action is logged with the revision number (e.g. <em>Design updated — Rev 02</em>) and the acting user's name.</p>
+    <h3>Accounts</h3>
+    <ol>
+      <li>PO for review → PO for approval</li>
+      <li><strong>Approve design</strong> or <strong>Return to design</strong> (new revision)</li>
+    </ol>
+    <p>Then <strong>Convert to order</strong> when design is approved.</p>
   </div>
 
   <div class="section">
-    <h2>6. Production Tracking &amp; Activity Log</h2>
+    <h2>7. Production &amp; Activity Log</h2>
     <h3>Production steps (on enquiry or order detail)</h3>
     <ol>
       <li><strong>Approve Production Start</strong> — production manager authorises shop floor to begin (logged with name and date)</li>
@@ -311,7 +331,7 @@
   </div>
 
   <div class="section">
-    <h2>7. Order &amp; Dispatch</h2>
+    <h2>8. Order &amp; Dispatch</h2>
     <h3>Quantity tracking</h3>
     <table>
       <tr><th>Metric</th><th>Meaning</th></tr>
@@ -334,96 +354,104 @@
   </div>
 
   <div class="screens-section">
-    <h2>8. Screen Guide</h2>
-    <p>Screenshots captured from the live demo application.</p>
+    <h2>9. Screen Guide</h2>
+    <p>Screenshots from the current teal-themed portal. Role badges show separate logins (admin, designer, accounts, production) — each user sees only permitted menus and data.</p>
     
     <section class="screen">
-      <h3>Login — click Enter Demo to access ECOVENT Operations</h3>
-      <img src="screenshots/01-login.png" alt="Login — click Enter Demo to access ECOVENT Operations" />
+      
+      <h3>Login — per-user username and password (issued by administrator)</h3>
+      <img src="screenshots/01-login.png" alt="Login — per-user username and password (issued by administrator)" />
     </section>
 
     <section class="screen">
-      <h3>Dashboard — KPIs, workflow progress, and quick actions (New Enquiry, Create Dispatch)</h3>
-      <img src="screenshots/02-dashboard.png" alt="Dashboard — KPIs, workflow progress, and quick actions (New Enquiry, Create Dispatch)" />
+      <p class="role-label">Admin</p>
+      <h3>Dashboard — KPIs, work queue, and workflow audit (admin / supervisor)</h3>
+      <img src="screenshots/02-admin-dashboard.png" alt="Dashboard — KPIs, work queue, and workflow audit (admin / supervisor)" />
     </section>
 
     <section class="screen">
-      <h3>Enquiries list — Card / Grid / Kanban views with stage filters</h3>
-      <img src="screenshots/03-enquiries.png" alt="Enquiries list — Card / Grid / Kanban views with stage filters" />
+      <p class="role-label">Admin / Supervisor</p>
+      <h3>Clients — customers, projects, and contacts master data</h3>
+      <img src="screenshots/03-admin-clients.png" alt="Clients — customers, projects, and contacts master data" />
     </section>
 
     <section class="screen">
-      <h3>New Enquiry form — customer, project, assignment, and drawing upload</h3>
-      <img src="screenshots/04-new-enquiry.png" alt="New Enquiry form — customer, project, assignment, and drawing upload" />
+      <p class="role-label">Admin / Supervisor</p>
+      <h3>Enquiries — all stages; card, grid, or kanban views</h3>
+      <img src="screenshots/04-admin-enquiries.png" alt="Enquiries — all stages; card, grid, or kanban views" />
     </section>
 
     <section class="screen">
-      <h3>Enquiry detail — workflow stepper, design review, production, and activity history</h3>
-      <img src="screenshots/05-enquiry-detail.png" alt="Enquiry detail — workflow stepper, design review, production, and activity history" />
+      <p class="role-label">Supervisor</p>
+      <h3>New enquiry — client & project, file upload, person in charge</h3>
+      <img src="screenshots/05-new-enquiry.png" alt="New enquiry — client & project, file upload, person in charge" />
     </section>
 
     <section class="screen">
-      <h3>Delivery & Activity History — phased audit trail with actor and revision numbers</h3>
-      <img src="screenshots/06-enquiry-activity.png" alt="Delivery & Activity History — phased audit trail with actor and revision numbers" />
+      <p class="role-label">Admin / Supervisor</p>
+      <h3>Enquiry detail — workflow stepper, accept & assign design, files, actions</h3>
+      <img src="screenshots/06-enquiry-detail.png" alt="Enquiry detail — workflow stepper, accept & assign design, files, actions" />
     </section>
 
     <section class="screen">
-      <h3>Orders list — status badges (Ready = blue, Fully Dispatched = green)</h3>
-      <img src="screenshots/07-orders.png" alt="Orders list — status badges (Ready = blue, Fully Dispatched = green)" />
+      <p class="role-label">All roles</p>
+      <h3>Activity history — logged-in user name on every handoff</h3>
+      <img src="screenshots/07-enquiry-activity.png" alt="Activity history — logged-in user name on every handoff" />
     </section>
 
     <section class="screen">
-      <h3>Order detail — manufacturing progress, production approval, and dispatch trips</h3>
-      <img src="screenshots/08-order-detail.png" alt="Order detail — manufacturing progress, production approval, and dispatch trips" />
+      <p class="role-label">Designer</p>
+      <h3>Designer inbox — only enquiries assigned as design in-charge</h3>
+      <img src="screenshots/08-designer-enquiries.png" alt="Designer inbox — only enquiries assigned as design in-charge" />
     </section>
 
     <section class="screen">
-      <h3>Create dispatch — select items with + / − quantity controls per tag</h3>
-      <img src="screenshots/09-create-dispatch.png" alt="Create dispatch — select items with + / − quantity controls per tag" />
+      <p class="role-label">Accounts</p>
+      <h3>Accounts view — approval processing and PO workflow stages</h3>
+      <img src="screenshots/09-accounts-enquiries.png" alt="Accounts view — approval processing and PO workflow stages" />
     </section>
 
     <section class="screen">
+      <p class="role-label">Production</p>
+      <h3>Orders — manufacturing status and production actions</h3>
+      <img src="screenshots/10-production-orders.png" alt="Orders — manufacturing status and production actions" />
+    </section>
+
+    <section class="screen">
+      <p class="role-label">Production</p>
+      <h3>Order detail — production approval, progress, dispatch trips</h3>
+      <img src="screenshots/11-order-detail.png" alt="Order detail — production approval, progress, dispatch trips" />
+    </section>
+
+    <section class="screen">
+      <p class="role-label">Admin</p>
+      <h3>Create dispatch — + / − quantity per duct tag</h3>
+      <img src="screenshots/12-create-dispatch.png" alt="Create dispatch — + / − quantity per duct tag" />
+    </section>
+
+    <section class="screen">
+      <p class="role-label">Admin</p>
       <h3>Vehicle details — driver, transporter, and loading information</h3>
-      <img src="screenshots/10-vehicle-details.png" alt="Vehicle details — driver, transporter, and loading information" />
+      <img src="screenshots/13-vehicle-details.png" alt="Vehicle details — driver, transporter, and loading information" />
     </section>
 
     <section class="screen">
+      <p class="role-label">Admin</p>
       <h3>Dispatch preview — review quantities before confirming trip</h3>
-      <img src="screenshots/11-dispatch-preview.png" alt="Dispatch preview — review quantities before confirming trip" />
+      <img src="screenshots/14-dispatch-preview.png" alt="Dispatch preview — review quantities before confirming trip" />
     </section>
 
     <section class="screen">
+      <p class="role-label">Admin</p>
       <h3>Dispatch history — all vehicle trips across orders</h3>
-      <img src="screenshots/12-dispatch-list.png" alt="Dispatch history — all vehicle trips across orders" />
+      <img src="screenshots/15-dispatch-list.png" alt="Dispatch history — all vehicle trips across orders" />
     </section>
 
     <section class="screen">
-      <h3>Dispatch note — printable document with item table and signatures</h3>
-      <img src="screenshots/13-dispatch-note.png" alt="Dispatch note — printable document with item table and signatures" />
+      <p class="role-label">Admin</p>
+      <h3>Settings — application information</h3>
+      <img src="screenshots/17-settings.png" alt="Settings — application information" />
     </section>
-
-    <section class="screen">
-      <h3>Settings — demo reset and application information</h3>
-      <img src="screenshots/14-settings.png" alt="Settings — demo reset and application information" />
-    </section>
-  </div>
-
-  <div class="section">
-    <h2>9. Sample Enquiry Activity Log</h2>
-    <p>Full audit trail for demo enquiry <strong>ENQ-2026-0001</strong> (AIRMASTER-WO-845 / NEW KC) showing design revisions, production approval, and dispatch trip:</p>
-    <table>
-      <tr><th>Phase</th><th>Action</th><th>Detail</th><th>Actor</th><th>Rev/Trip</th></tr>
-      <tr><td>Enquiry</td><td>Enquiry created</td><td>ENQ-2026-0001 — AIRMASTER-WO-845</td><td>Karthik S (Sales)</td><td>—</td></tr>
-      <tr><td>Design</td><td>Design review started</td><td>Rev 01</td><td>Priya N (Design Engineer)</td><td>1</td></tr>
-      <tr><td>Design</td><td>Revision requested</td><td>Client changed AHU room layout</td><td>Karthik S (Sales)</td><td>1</td></tr>
-      <tr><td>Design</td><td>Design revision started</td><td>Rev 02</td><td>Priya N (Design Engineer)</td><td>2</td></tr>
-      <tr><td>Design</td><td>Design approved</td><td>Ready for order conversion</td><td>Priya N (Design Engineer)</td><td>2</td></tr>
-      <tr><td>Order</td><td>Converted to order</td><td>AIRMASTER-WO-845</td><td>Karthik S (Sales)</td><td>—</td></tr>
-      <tr><td>Production</td><td>Production start approved</td><td>Shop floor authorised</td><td>Ravi M (Production Manager)</td><td>—</td></tr>
-      <tr><td>Production</td><td>Production progress updated</td><td>12 / 18 qty produced</td><td>Ravi M (Production Manager)</td><td>—</td></tr>
-      <tr><td>Production</td><td>Marked ready for dispatch</td><td>18 qty ready in stock</td><td>Ravi M (Production Manager)</td><td>—</td></tr>
-      <tr><td>Dispatch</td><td>Dispatch Trip 1 created</td><td>D-2026-0100 · 7 qty · KA-01-AB-1234</td><td>Suresh K (Dispatch Coordinator)</td><td>1</td></tr>
-    </table>
   </div>
 
   <div class="section">
@@ -446,22 +474,11 @@
       <tr><td>Dispatch</td><td>Ready or partially dispatched</td></tr>
       <tr><td>Completed</td><td>Fully dispatched</td></tr>
     </table>
-    <h3>Demo Order: AIRMASTER-WO-845</h3>
-    <table>
-      <tr><th>Field</th><th>Value</th></tr>
-      <tr><td>Enquiry</td><td>ENQ-2026-0001</td></tr>
-      <tr><td>Customer</td><td>NEW KC</td></tr>
-      <tr><td>Design Revision</td><td>Rev 02 (approved by Priya N)</td></tr>
-      <tr><td>Total Qty</td><td>18 ducts · 12 tags</td></tr>
-      <tr><td>Total Area</td><td>55.01 m²</td></tr>
-      <tr><td>Dispatched</td><td>7 qty (Dispatch Trip 1)</td></tr>
-      <tr><td>Balance</td><td>11 qty</td></tr>
-    </table>
   </div>
 
   <p class="footer-note">
     ECOVENT AIR SYSTEMS INDIA LLP — Quality Ducts Is Our Business<br/>
-    Generated automatically from the live demo application.
+    Document generated 30 September 2026. For access or training, contact your system administrator.
   </p>
 
 </body>

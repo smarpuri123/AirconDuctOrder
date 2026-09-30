@@ -4,11 +4,12 @@
   <meta charset="UTF-8" />
   <title>ECOVENT Mobile Dispatch — User Guide</title>
   <style>
+    
     @page { margin: 20mm 15mm; size: A4; }
     * { box-sizing: border-box; }
     body {
       font-family: 'Segoe UI', Inter, Arial, sans-serif;
-      color: #1a1a2e;
+      color: #1a2830;
       line-height: 1.55;
       font-size: 11pt;
       margin: 0;
@@ -22,17 +23,17 @@
       justify-content: center;
       align-items: center;
       text-align: center;
-      background: linear-gradient(180deg, #003087 0%, #00246b 100%);
+      background: linear-gradient(180deg, #009888 0%, #007a6d 100%);
       color: white;
       padding: 40px;
     }
-    .cover h1 { font-size: 30pt; margin: 0 0 8px; letter-spacing: -0.02em; }
-    .cover .tagline { font-size: 14pt; opacity: 0.9; margin-bottom: 40px; }
-    .cover .meta { font-size: 11pt; opacity: 0.75; line-height: 1.8; }
+    .cover h1 { font-size: 32pt; margin: 0 0 8px; letter-spacing: -0.02em; }
+    .cover .tagline { font-size: 14pt; opacity: 0.95; margin-bottom: 40px; }
+    .cover .meta { font-size: 11pt; opacity: 0.85; line-height: 1.8; }
     .cover .badge {
       display: inline-block;
       background: #f5ba2e;
-      color: #1a1a2e;
+      color: #1a2830;
       padding: 8px 20px;
       border-radius: 20px;
       font-weight: 600;
@@ -40,14 +41,15 @@
       font-size: 10pt;
     }
     h2 {
-      color: #003087;
+      color: #009888;
       font-size: 18pt;
-      border-bottom: 2px solid #003087;
+      border-bottom: 2px solid #009888;
       padding-bottom: 6px;
       margin-top: 28px;
       page-break-after: avoid;
     }
-    h3 { color: #003087; font-size: 12pt; margin-top: 20px; page-break-after: avoid; }
+    h3 { color: #186898; font-size: 12pt; margin-top: 20px; page-break-after: avoid; }
+    h4 { color: #5a6d72; font-size: 11pt; margin-top: 16px; }
     p { margin: 8px 0; }
     ul, ol { margin: 8px 0; padding-left: 22px; }
     li { margin: 4px 0; }
@@ -58,27 +60,27 @@
       font-size: 9.5pt;
     }
     th {
-      background: #003087;
+      background: #009888;
       color: white;
       text-align: left;
       padding: 8px 10px;
     }
     td {
-      border-bottom: 1px solid #cbd2d6;
+      border-bottom: 1px solid #c5d6d6;
       padding: 8px 10px;
       vertical-align: top;
     }
     .highlight {
-      background: #f5f7fa;
-      border-left: 4px solid #003087;
+      background: #f2f8f7;
+      border-left: 4px solid #009888;
       padding: 12px 16px;
       margin: 16px 0;
       border-radius: 0 8px 8px 0;
     }
     .badge-blue {
       display: inline-block;
-      background: rgba(0,48,135,0.1);
-      color: #003087;
+      background: #e8f2f8;
+      color: #186898;
       padding: 2px 8px;
       border-radius: 12px;
       font-size: 9pt;
@@ -86,8 +88,8 @@
     }
     .badge-green {
       display: inline-block;
-      background: #e6f4ea;
-      color: #019c34;
+      background: #e8f5ef;
+      color: #306830;
       padding: 2px 8px;
       border-radius: 12px;
       font-size: 9pt;
@@ -102,44 +104,38 @@
       font-size: 9pt;
       font-weight: 600;
     }
-    .screen {
-      page-break-inside: avoid;
-      margin: 24px 0 32px;
-    }
-    .phone-frame {
-      max-width: 240px;
-      margin: 12px auto 0;
-      border: 10px solid #1a1a2e;
-      border-radius: 28px;
-      overflow: hidden;
-      box-shadow: 0 8px 24px rgba(0,48,135,0.15);
-    }
-    .phone-frame img {
+    .screen { page-break-inside: avoid; margin: 24px 0 32px; }
+    .screen img {
       width: 100%;
-      display: block;
-      vertical-align: top;
-      max-height: 58vh;
-      object-fit: cover;
-      object-position: top center;
-    }
-    .phone-frame.compact img {
-      max-height: 52vh;
+      border: 1px solid #c5d6d6;
+      border-radius: 8px;
+      box-shadow: 0 4px 16px rgba(0, 152, 136, 0.12);
+      margin-top: 8px;
     }
     .screen h3 {
       font-size: 11pt;
-      color: #687173;
+      color: #5a6d72;
       font-weight: 600;
       margin-bottom: 4px;
-      text-align: center;
+    }
+    .role-label {
+      display: inline-block;
+      background: #009888;
+      color: white;
+      font-size: 9pt;
+      font-weight: 600;
+      padding: 2px 10px;
+      border-radius: 12px;
+      margin-bottom: 6px;
     }
     .toc { page-break-after: always; }
     .toc li { margin: 6px 0; }
     .footer-note {
       font-size: 9pt;
-      color: #687173;
+      color: #5a6d72;
       text-align: center;
       margin-top: 40px;
-      border-top: 1px solid #cbd2d6;
+      border-top: 1px solid #c5d6d6;
       padding-top: 12px;
     }
     .section { page-break-before: auto; }
@@ -151,7 +147,7 @@
       align-items: flex-start;
     }
     .flow-num {
-      background: #003087;
+      background: #009888;
       color: white;
       width: 24px;
       height: 24px;
@@ -163,14 +159,32 @@
       font-weight: 700;
       flex-shrink: 0;
     }
+  
+    
+    .phone-frame {
+      max-width: 240px;
+      margin: 12px auto 0;
+      border: 10px solid #1a2830;
+      border-radius: 28px;
+      overflow: hidden;
+      box-shadow: 0 8px 24px rgba(0, 152, 136, 0.15);
+    }
+    .phone-frame img {
+      width: 100%;
+      display: block;
+      vertical-align: top;
+      max-height: 58vh;
+      object-fit: cover;
+      object-position: top center;
+    }
+    .phone-frame.compact img { max-height: 52vh; }
+    .screen h3 { text-align: center; }
     .two-col {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 16px;
     }
-    @media print {
-      .two-col { grid-template-columns: 1fr 1fr; }
-    }
+  
   </style>
 </head>
 <body>
@@ -181,7 +195,7 @@
     <p class="meta">
       ECOVENT AIR SYSTEMS INDIA LLP<br/>
       Quality Ducts Is Our Business<br/><br/>
-      Version 1.0 Demo &nbsp;|&nbsp; 20 September 2026
+      Version 2.0 &nbsp;|&nbsp; 30 September 2026
     </p>
     <span class="badge">Orders → Select Tags → Vehicle → Confirm → Share</span>
   </div>
@@ -217,12 +231,19 @@
       <tr><td>Create enquiries &amp; design</td><td>—</td><td>Yes</td></tr>
       <tr><td>Production tracking</td><td>—</td><td>Yes</td></tr>
     </table>
-    <p>Install the <strong>ECOVENT Dispatch</strong> app on each user's phone using the APK file provided by your administrator. The app connects to the ECOVENT server — no browser bookmarks required.</p>
+    <p>Use the <strong>mobile web app</strong> at <em>/m/login</em> on your server URL, or the <strong>ECOVENT Dispatch APK</strong> if your administrator provides one. Both use the same login and data as the admin portal.</p>
   </div>
 
   <div class="section">
-    <h2>2. Install on Mobile (APK)</h2>
-    <p>The dispatch app is distributed as an Android APK. Once installed, it appears on the home screen like any other app and opens full-screen.</p>
+    <h2>2. Install on Mobile</h2>
+    <h3>Option A — Browser (recommended for HTTP / IP servers)</h3>
+    <ol>
+      <li>Open Chrome on the phone</li>
+      <li>Go to <strong>your-server/m/login</strong> (URL from administrator)</li>
+      <li>Sign in — optional: Add to Home screen for a shortcut icon</li>
+    </ol>
+    <h3>Option B — Android APK</h3>
+    <p>If provided, install the APK as below. It loads the same dispatch UI from your server.</p>
     <h3>Android</h3>
     <ol>
       <li>Transfer the <strong>ECOVENT Dispatch APK</strong> file to the phone (email, WhatsApp, or USB)</li>
@@ -233,7 +254,7 @@
     <h3>First launch</h3>
     <ol>
       <li>Open the app — the login screen appears</li>
-      <li>Sign in with the email and password provided by your administrator</li>
+      <li>Sign in with the <strong>username</strong> and <strong>password</strong> provided by your administrator</li>
       <li>You are taken directly to the Orders screen</li>
     </ol>
     <div class="highlight">
@@ -243,13 +264,8 @@
 
   <div class="section">
     <h2>3. Login &amp; User Access</h2>
-    <p>Each user signs in with email and password. The signed-in name appears in the header. All users with dispatch permissions can access orders and create or update dispatches.</p>
-    <table>
-      <tr><th>Demo account</th><th>Password</th><th>Role</th></tr>
-      <tr><td>dispatch@ecovent.com</td><td>Dispatch@123</td><td>Dispatch Coordinator</td></tr>
-      <tr><td>admin@ecovent.com</td><td>Admin@123</td><td>Administrator</td></tr>
-      <tr><td>office@ecovent.com</td><td>Office@123</td><td>Office Staff</td></tr>
-    </table>
+    <p>Dispatch users sign in with a <strong>dispatcher</strong> account (username + password). The signed-in name appears in the header. Credentials are not shown on the login screen — request them from your administrator.</p>
+    <p>Dispatcher accounts can list orders with balance, create trips, update trip status, and share dispatch notes. Admin and supervisor accounts use the desktop portal for enquiries and production.</p>
     <p>Tap the <strong>logout</strong> icon in the header to sign out.</p>
   </div>
 
@@ -318,9 +334,9 @@
     <p>Screenshots from the ECOVENT Dispatch mobile app.</p>
     
     <section class="screen">
-      <h3>Login — per-user sign-in or Enter Dispatch Demo</h3>
+      <h3>Login — username and password from your administrator</h3>
       <div class="phone-frame">
-        <img src="mobile-screenshots/01-login.png" alt="Login — per-user sign-in or Enter Dispatch Demo" />
+        <img src="mobile-screenshots/01-login.png" alt="Login — username and password from your administrator" />
       </div>
     </section>
 
@@ -411,7 +427,7 @@
 
   <p class="footer-note">
     ECOVENT AIR SYSTEMS INDIA LLP — Quality Ducts Is Our Business<br/>
-    ECOVENT Dispatch Mobile App — User Guide
+    ECOVENT Dispatch — User Guide · Generated 30 September 2026
   </p>
 
 </body>

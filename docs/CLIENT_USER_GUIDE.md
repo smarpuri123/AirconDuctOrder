@@ -13,7 +13,10 @@ This document summarises the **production** portal (September 2026). Share the P
 1. Start the app against data you want in screenshots:
    - **Local:** `npm run dev:all` (demo) or API + `PDF_BASE_URL=http://localhost:5173`
    - **Production screenshots:** `PDF_BASE_URL=http://YOUR_SERVER PDF_LOGIN_USER=admin PDF_LOGIN_PASSWORD=... npm run docs:all`
-2. Run the command above from the project root.
+2. Ensure API + demo data for rich screenshots: `npm run db:up`, `npm run dev:all`, and `npm run db:seed:demo` (in `server/`).
+3. Run the command above from the project root.
+
+Multi-role capture uses seeded users: `admin`, `designer`, `accounts`, `production`, `dispatch` (password `{username}@123`).
 
 ---
 
