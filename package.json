@@ -15,6 +15,7 @@
     "docs:pdf": "node scripts/generate-portal-pdf.mjs",
     "docs:mobile-pdf": "node scripts/generate-mobile-pdf.mjs",
     "docs:all": "node scripts/generate-portal-pdf.mjs && node scripts/generate-mobile-pdf.mjs",
+    "docs:client": "npm run docs:all",
     "db:setup": "powershell -ExecutionPolicy Bypass -File scripts/setup-local-db.ps1",
     "db:push": "npm run db:push --prefix server",
     "db:seed": "npm run db:seed --prefix server",

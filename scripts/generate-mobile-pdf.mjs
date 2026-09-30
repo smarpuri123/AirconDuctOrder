@@ -2,6 +2,7 @@ import { chromium } from 'playwright'
 import { mkdir, writeFile } from 'fs/promises'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
+import { loginMobile, guideDateLabel } from './pdf-auth.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const ROOT = join(__dirname, '..')
@@ -9,21 +10,6 @@ const SCREENSHOTS_DIR = join(ROOT, 'docs', 'mobile-screenshots')
 const OUTPUT_PDF = join(ROOT, 'docs', 'ECOVENT-Mobile-Dispatch-Guide.pdf')
 const BASE_URL = process.env.PDF_BASE_URL || 'http://localhost:5173'
 const MOBILE_VIEWPORT = { width: 390, height: 844 }
-
-async function loginMobile(page) {
-  const demoBtn = page.getByRole('button', { name: 'Enter Dispatch Demo' })
-  if (await demoBtn.isVisible().catch(() => false)) {
-    await demoBtn.click()
-    await page.waitForURL('**/m/orders', { timeout: 10000 })
-    await page.waitForTimeout(600)
-    return
-  }
-
-  await page.getByRole('button', { name: 'Sign In' }).click()
-  await page.waitForURL('**/m/orders', { timeout: 30000 })
-  await page.waitForSelector('text=Orders to Dispatch', { timeout: 20000 })
-  await page.waitForTimeout(800)
-}
 
 async function resolveOrderId(page) {
   if (process.env.PDF_ORDER_ID) return process.env.PDF_ORDER_ID
@@ -72,11 +58,11 @@ async function captureScreenshots(page) {
   shots.push({
     name: '01-login',
     file: 'mobile-screenshots/01-login.png',
-    caption: 'Login — per-user sign-in or Enter Dispatch Demo',
+    caption: 'Login — username and password from your administrator',
   })
   console.log('  ✓ 01-login')
 
-  await loginMobile(page)
+  await loginMobile(page, BASE_URL)
 
   const orderId = await resolveOrderId(page)
   const dispatchId = await resolveDispatchId(page)
@@ -189,11 +175,7 @@ function buildHtml(shots) {
     )
     .join('\n')
 
-  const today = new Date().toLocaleDateString('en-GB', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  })
+  const today = guideDateLabel()
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -378,7 +360,7 @@ function buildHtml(shots) {
     <p class="meta">
       ECOVENT AIR SYSTEMS INDIA LLP<br/>
       Quality Ducts Is Our Business<br/><br/>
-      Version 1.0 Demo &nbsp;|&nbsp; ${today}
+      Version 2.0 &nbsp;|&nbsp; ${today}
     </p>
     <span class="badge">Orders → Select Tags → Vehicle → Confirm → Share</span>
   </div>
@@ -414,12 +396,19 @@ function buildHtml(shots) {
       <tr><td>Create enquiries &amp; design</td><td>—</td><td>Yes</td></tr>
       <tr><td>Production tracking</td><td>—</td><td>Yes</td></tr>
     </table>
-    <p>Install the <strong>ECOVENT Dispatch</strong> app on each user's phone using the APK file provided by your administrator. The app connects to the ECOVENT server — no browser bookmarks required.</p>
+    <p>Use the <strong>mobile web app</strong> at <em>/m/login</em> on your server URL, or the <strong>ECOVENT Dispatch APK</strong> if your administrator provides one. Both use the same login and data as the admin portal.</p>
   </div>
 
   <div class="section">
-    <h2>2. Install on Mobile (APK)</h2>
-    <p>The dispatch app is distributed as an Android APK. Once installed, it appears on the home screen like any other app and opens full-screen.</p>
+    <h2>2. Install on Mobile</h2>
+    <h3>Option A — Browser (recommended for HTTP / IP servers)</h3>
+    <ol>
+      <li>Open Chrome on the phone</li>
+      <li>Go to <strong>your-server/m/login</strong> (URL from administrator)</li>
+      <li>Sign in — optional: Add to Home screen for a shortcut icon</li>
+    </ol>
+    <h3>Option B — Android APK</h3>
+    <p>If provided, install the APK as below. It loads the same dispatch UI from your server.</p>
     <h3>Android</h3>
     <ol>
       <li>Transfer the <strong>ECOVENT Dispatch APK</strong> file to the phone (email, WhatsApp, or USB)</li>
@@ -430,7 +419,7 @@ function buildHtml(shots) {
     <h3>First launch</h3>
     <ol>
       <li>Open the app — the login screen appears</li>
-      <li>Sign in with the email and password provided by your administrator</li>
+      <li>Sign in with the <strong>username</strong> and <strong>password</strong> provided by your administrator</li>
       <li>You are taken directly to the Orders screen</li>
     </ol>
     <div class="highlight">
@@ -440,13 +429,8 @@ function buildHtml(shots) {
 
   <div class="section">
     <h2>3. Login &amp; User Access</h2>
-    <p>Each user signs in with email and password. The signed-in name appears in the header. All users with dispatch permissions can access orders and create or update dispatches.</p>
-    <table>
-      <tr><th>Demo account</th><th>Password</th><th>Role</th></tr>
-      <tr><td>dispatch@ecovent.com</td><td>Dispatch@123</td><td>Dispatch Coordinator</td></tr>
-      <tr><td>admin@ecovent.com</td><td>Admin@123</td><td>Administrator</td></tr>
-      <tr><td>office@ecovent.com</td><td>Office@123</td><td>Office Staff</td></tr>
-    </table>
+    <p>Dispatch users sign in with a <strong>dispatcher</strong> account (username + password). The signed-in name appears in the header. Credentials are not shown on the login screen — request them from your administrator.</p>
+    <p>Dispatcher accounts can list orders with balance, create trips, update trip status, and share dispatch notes. Admin and supervisor accounts use the desktop portal for enquiries and production.</p>
     <p>Tap the <strong>logout</strong> icon in the header to sign out.</p>
   </div>
 
@@ -539,7 +523,7 @@ function buildHtml(shots) {
 
   <p class="footer-note">
     ECOVENT AIR SYSTEMS INDIA LLP — Quality Ducts Is Our Business<br/>
-    ECOVENT Dispatch Mobile App — User Guide
+    ECOVENT Dispatch — User Guide · Generated ${today}
   </p>
 
 </body>

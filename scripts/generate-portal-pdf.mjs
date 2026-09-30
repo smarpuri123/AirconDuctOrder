@@ -2,6 +2,7 @@ import { chromium } from 'playwright'
 import { mkdir, writeFile } from 'fs/promises'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
+import { loginPortal, guideDateLabel } from './pdf-auth.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const ROOT = join(__dirname, '..')
@@ -22,15 +23,20 @@ async function captureScreenshots(page) {
     console.log(`  ✓ ${name}`)
   }
 
-  await shot('01-login', '/login', {
-    caption: 'Login — click Enter Demo to access ECOVENT Operations',
+  await page.goto(`${BASE_URL}/login`, { waitUntil: 'networkidle' })
+  await page.waitForTimeout(600)
+  await page.screenshot({
+    path: join(SCREENSHOTS_DIR, '01-login.png'),
     fullPage: false,
   })
+  shots.push({
+    name: '01-login',
+    file: 'screenshots/01-login.png',
+    caption: 'Login — sign in with username and password provided by your administrator',
+  })
+  console.log('  ✓ 01-login')
 
-  await page.goto(`${BASE_URL}/login`)
-  await page.getByRole('button', { name: 'Enter Demo' }).click()
-  await page.waitForURL('**/')
-  await page.waitForTimeout(500)
+  await loginPortal(page, BASE_URL)
 
   await shot('02-dashboard', '/', {
     caption: 'Dashboard — KPIs, workflow progress, and quick actions (New Enquiry, Create Dispatch)',
@@ -44,11 +50,24 @@ async function captureScreenshots(page) {
     caption: 'New Enquiry form — customer, project, assignment, and drawing upload',
   })
 
-  await shot('05-enquiry-detail', '/enquiries/enq-001', {
-    caption: 'Enquiry detail — workflow stepper, design review, production, and activity history',
+  let enquiryPath = process.env.PDF_ENQUIRY_PATH || ''
+  if (!enquiryPath) {
+    await page.goto(`${BASE_URL}/enquiries`, { waitUntil: 'networkidle' })
+    await page.waitForTimeout(800)
+    const row = page.locator('main table tbody tr, main [class*="grid"] > div').first()
+    if (await row.count()) {
+      await row.click()
+      await page.waitForURL(/\/enquiries\/[^/]+$/, { timeout: 10000 }).catch(() => {})
+      enquiryPath = new URL(page.url()).pathname
+    }
+  }
+  if (!enquiryPath || enquiryPath.includes('/new')) enquiryPath = '/enquiries'
+
+  await shot('05-enquiry-detail', enquiryPath, {
+    caption: 'Enquiry detail — workflow stepper, design actions, files, and activity history',
   })
 
-  await shot('06-enquiry-activity', '/enquiries/enq-001', {
+  await shot('06-enquiry-activity', enquiryPath, {
     caption: 'Delivery & Activity History — phased audit trail with actor and revision numbers',
     before: async (p) => {
       await p.evaluate(() => window.scrollTo(0, document.body.scrollHeight))
@@ -60,15 +79,28 @@ async function captureScreenshots(page) {
     caption: 'Orders list — status badges (Ready = blue, Fully Dispatched = green)',
   })
 
-  await shot('08-order-detail', '/orders/ord-001', {
+  let orderPath = process.env.PDF_ORDER_PATH || ''
+  if (!orderPath) {
+    await page.goto(`${BASE_URL}/orders`, { waitUntil: 'networkidle' })
+    await page.waitForTimeout(800)
+    const row = page.locator('main table tbody tr, main [class*="grid"] > div').first()
+    if (await row.count()) {
+      await row.click()
+      await page.waitForURL(/\/orders\/[^/]+$/, { timeout: 10000 }).catch(() => {})
+      orderPath = new URL(page.url()).pathname
+    }
+  }
+  if (!orderPath) orderPath = '/orders'
+
+  await shot('08-order-detail', orderPath, {
     caption: 'Order detail — manufacturing progress, production approval, and dispatch trips',
   })
 
-  await shot('09-create-dispatch', '/orders/ord-001/dispatch', {
+  await shot('09-create-dispatch', `${orderPath}/dispatch`, {
     caption: 'Create dispatch — select items with + / − quantity controls per tag',
   })
 
-  await page.goto(`${BASE_URL}/orders/ord-001/dispatch`)
+  await page.goto(`${BASE_URL}${orderPath}/dispatch`)
   await page.waitForTimeout(400)
   const plusButtons = page.locator('button[aria-label="Increase quantity"]')
   const count = await plusButtons.count()
@@ -112,7 +144,20 @@ async function captureScreenshots(page) {
     caption: 'Dispatch history — all vehicle trips across orders',
   })
 
-  await shot('13-dispatch-note', '/dispatch/disp-001', {
+  let dispatchPath = process.env.PDF_DISPATCH_PATH || ''
+  if (!dispatchPath) {
+    await page.goto(`${BASE_URL}/dispatch`, { waitUntil: 'networkidle' })
+    await page.waitForTimeout(800)
+    const row = page.locator('main table tbody tr, main [class*="grid"] > div').first()
+    if (await row.count()) {
+      await row.click()
+      await page.waitForURL(/\/dispatch\/[^/]+$/, { timeout: 10000 }).catch(() => {})
+      dispatchPath = new URL(page.url()).pathname
+    }
+  }
+  if (!dispatchPath) dispatchPath = '/dispatch'
+
+  await shot('13-dispatch-note', dispatchPath, {
     caption: 'Dispatch note — printable document with item table and signatures',
   })
 
@@ -124,6 +169,7 @@ async function captureScreenshots(page) {
 }
 
 function buildHtml(shots) {
+  const today = guideDateLabel()
   const shotBlocks = shots
     .map(
       (s) => `
@@ -297,7 +343,7 @@ function buildHtml(shots) {
     <p class="meta">
       ECOVENT AIR SYSTEMS INDIA LLP<br/>
       Quality Ducts Is Our Business<br/><br/>
-      Version 2.0 Demo &nbsp;|&nbsp; 19 September 2026
+      Version 3.0 &nbsp;|&nbsp; ${today}
     </p>
     <span class="badge">Enquiry → Design → Order → Manufacture → Dispatch</span>
   </div>
@@ -305,56 +351,65 @@ function buildHtml(shots) {
   <div class="toc">
     <h2>Table of Contents</h2>
     <ol>
-      <li>Overview</li>
+      <li>Overview &amp; Access</li>
+      <li>User Roles</li>
       <li>End-to-End Workflow</li>
       <li>Navigation &amp; Display Views</li>
       <li>Creating a New Enquiry</li>
-      <li>Design Review &amp; Revision Phases</li>
-      <li>Production Tracking &amp; Activity Log</li>
+      <li>Design &amp; Accounts Workflow</li>
+      <li>Production &amp; Activity Log</li>
       <li>Order &amp; Dispatch</li>
       <li>Screen Guide (with screenshots)</li>
-      <li>Sample Enquiry Activity Log</li>
       <li>Status Reference</li>
     </ol>
   </div>
 
   <div class="section">
-    <h2>1. Overview</h2>
-    <p>ECOVENT Operations is a browser-based portal for managing the full duct manufacturing lifecycle — from customer enquiry through design review, order confirmation, production, and multi-trip dispatch.</p>
+    <h2>1. Overview &amp; Access</h2>
+    <p>ECOVENT Operations is a browser-based portal for managing the full duct manufacturing lifecycle — from customer enquiry through design review, accounts approval, order confirmation, production, and multi-trip dispatch.</p>
     <div class="highlight">
       <strong>Key principle: Enquiry ≠ Order ≠ Dispatch</strong><br/>
       A customer enquiry captures intent and drawings. An order is created only after design approval. Each vehicle trip is a separate dispatch. One order can have many dispatch trips until fully delivered.
     </div>
+    <p>Open the URL provided by your administrator (e.g. <em>https://your-server/login</em>). Enter your <strong>username</strong> and <strong>password</strong>. Credentials are issued per user; they are not displayed on the login page. Use <strong>Sign out</strong> in the header when finished.</p>
+  </div>
+
+  <div class="section">
+    <h2>2. User Roles</h2>
+    <p>Each login has one or more roles. Menus and records are filtered automatically.</p>
     <table>
-      <tr><th>Role</th><th>Primary Use</th></tr>
-      <tr><td>Sales</td><td>Create enquiries, upload drawings, track customer projects</td></tr>
-      <tr><td>Design Engineer</td><td>Extract duct schedule, manage revision phases, approve design</td></tr>
-      <tr><td>Production Manager</td><td>Approve production start, log progress, mark ready for dispatch</td></tr>
-      <tr><td>Dispatch Coordinator</td><td>Create dispatch trips, vehicle details, share dispatch notes</td></tr>
+      <tr><th>Role</th><th>Access</th><th>Typical tasks</th></tr>
+      <tr><td>Admin</td><td>Full portal</td><td>All modules, clients, users, settings</td></tr>
+      <tr><td>Supervisor</td><td>Full portal</td><td>Create enquiries, assign design, oversight</td></tr>
+      <tr><td>Designer</td><td>Assigned enquiries</td><td>Design review, Excel import, submit to accounts</td></tr>
+      <tr><td>Accounts</td><td>Enquiries (approval)</td><td>PO workflow, approve design, return to design</td></tr>
+      <tr><td>Production</td><td>Orders</td><td>Production approval and progress</td></tr>
+      <tr><td>Dispatcher</td><td>Mobile app only</td><td>Field dispatch (see Mobile Dispatch guide)</td></tr>
     </table>
-    <p>To access the portal, open the login screen and click <strong>Enter Demo</strong>. Use the <strong>Acting as</strong> selector in the header to record who performs each action.</p>
+    <p>Activity history records the <strong>signed-in user</strong> for every action (not a separate “acting as” selector).</p>
   </div>
 
   <div class="section">
-    <h2>2. End-to-End Workflow</h2>
-    <div class="flow-step"><span class="flow-num">1</span><div><strong>New Enquiry</strong> — capture customer, project, and drawing details. No order is created at this stage.</div></div>
-    <div class="flow-step"><span class="flow-num">2</span><div><strong>Design Review</strong> — engineer extracts duct tags, quantity, and area. Multiple revision phases supported (Rev 01, Rev 02…).</div></div>
-    <div class="flow-step"><span class="flow-num">3</span><div><strong>Approve Design</strong> — design must be saved and approved before order conversion.</div></div>
-    <div class="flow-step"><span class="flow-num">4</span><div><strong>Convert to Order</strong> — creates a production order linked to the enquiry.</div></div>
-    <div class="flow-step"><span class="flow-num">5</span><div><strong>Production</strong> — production manager approves start, logs progress updates, marks ready for dispatch.</div></div>
-    <div class="flow-step"><span class="flow-num">6</span><div><strong>Dispatch Trips</strong> — create one or more vehicle dispatches until balance reaches zero.</div></div>
-    <p>Every step is recorded in the <strong>Delivery &amp; Activity History</strong> with the person name, role, timestamp, and phase.</p>
+    <h2>3. End-to-End Workflow</h2>
+    <div class="flow-step"><span class="flow-num">1</span><div><strong>New Enquiry</strong> — supervisor/admin selects client &amp; project, uploads customer files.</div></div>
+    <div class="flow-step"><span class="flow-num">2</span><div><strong>Accept &amp; assign design</strong> — intake completed; design engineer assigned (designer inbox).</div></div>
+    <div class="flow-step"><span class="flow-num">3</span><div><strong>Design review</strong> — duct extraction, Excel import, revisions (Rev 01, 02…); submit to accounts.</div></div>
+    <div class="flow-step"><span class="flow-num">4</span><div><strong>Accounts / PO</strong> — review and approve design for manufacturing.</div></div>
+    <div class="flow-step"><span class="flow-num">5</span><div><strong>Convert to order</strong> — production order linked to the enquiry.</div></div>
+    <div class="flow-step"><span class="flow-num">6</span><div><strong>Production &amp; dispatch</strong> — shop floor progress; one or more vehicle trips until balance is zero.</div></div>
+    <p>Every step appears in <strong>Delivery &amp; Activity History</strong> with user name, role, timestamp, and revision/trip where applicable.</p>
   </div>
 
   <div class="section">
-    <h2>3. Navigation &amp; Display Views</h2>
+    <h2>4. Navigation &amp; Display Views</h2>
     <table>
-      <tr><th>Menu</th><th>Purpose</th></tr>
-      <tr><td>Dashboard</td><td>KPIs, featured enquiry workflow, recent enquiries and dispatches</td></tr>
-      <tr><td>Enquiries</td><td>All customer enquiries with stage filters and view modes</td></tr>
-      <tr><td>Orders</td><td>Manufacturing orders ready for or in dispatch</td></tr>
-      <tr><td>Dispatch</td><td>All vehicle trips across orders</td></tr>
-      <tr><td>Settings</td><td>Demo reset and application information</td></tr>
+      <tr><th>Menu</th><th>Who</th><th>Purpose</th></tr>
+      <tr><td>Dashboard</td><td>Admin, Supervisor</td><td>KPIs, work queue, workflow audit</td></tr>
+      <tr><td>Clients</td><td>Admin, Supervisor</td><td>Customers, projects, contacts</td></tr>
+      <tr><td>Enquiries</td><td>Most office roles</td><td>Pipeline by stage; designers see assigned items</td></tr>
+      <tr><td>Orders</td><td>Admin, Supervisor, Production</td><td>Manufacturing and dispatch readiness</td></tr>
+      <tr><td>Dispatch</td><td>Admin, Supervisor</td><td>All vehicle trips (desktop)</td></tr>
+      <tr><td>Settings</td><td>Admin</td><td>Application information</td></tr>
     </table>
     <h3>Toolbar Actions (per screen)</h3>
     <table>
@@ -366,20 +421,18 @@ function buildHtml(shots) {
     </table>
     <h3>Display Views</h3>
     <p>On Enquiries, Orders, and Dispatch lists, switch between <strong>Cards</strong>, <strong>Grid</strong>, and <strong>Kanban</strong>. Your preference is saved in the browser.</p>
-    <h3>Acting as</h3>
-    <p>The header dropdown lets you select the current user: Karthik S (Sales), Priya N (Design Engineer), Ravi M (Production Manager), or Suresh K (Dispatch Coordinator). All logged actions use this identity.</p>
+    <h3>Header</h3>
+    <p><strong>Notifications</strong> (bell) and <strong>user menu</strong> (name + sign out) are in the top bar on every screen.</p>
   </div>
 
   <div class="section">
-    <h2>4. Creating a New Enquiry</h2>
-    <p>Click <strong>New Enquiry</strong> from the Dashboard or Enquiries screen. This opens the enquiry form at <em>/enquiries/new</em> — not an existing record.</p>
-    <h3>Customer Details</h3>
+    <h2>5. Creating a New Enquiry</h2>
+    <p><strong>Admin / Supervisor:</strong> click <strong>New Enquiry</strong> from the Dashboard or Enquiries screen. Select an existing <strong>client</strong> and <strong>project</strong> from the directory (or add clients under <strong>Clients</strong> first).</p>
+    <h3>Customer &amp; contact</h3>
     <table>
       <tr><th>Field</th><th>Required</th><th>Description</th></tr>
-      <tr><td>Customer Name</td><td>Yes</td><td>Company or client name</td></tr>
-      <tr><td>Contact Person</td><td>Yes</td><td>Primary site contact</td></tr>
-      <tr><td>Phone</td><td>Yes</td><td>Contact number</td></tr>
-      <tr><td>Email</td><td>No</td><td>Contact email</td></tr>
+      <tr><td>Client / project</td><td>Yes</td><td>From client master data</td></tr>
+      <tr><td>Contact</td><td>Optional</td><td>Site contact from client record</td></tr>
     </table>
     <h3>Project Details</h3>
     <table>
@@ -397,12 +450,12 @@ function buildHtml(shots) {
       <tr><td>Source</td><td>No</td><td>Existing Customer, Referral, Website, etc.</td></tr>
       <tr><td>Remarks</td><td>No</td><td>Scope notes, urgency, site constraints</td></tr>
     </table>
-    <h3>Drawing Attachment</h3>
-    <p>Upload customer drawing (PDF, DWG, DXF, Excel, or image). In demo mode the filename is stored. On submit, the system:</p>
+    <h3>Client input files</h3>
+    <p>Upload customer drawings (PDF, images, Excel, etc.) on the create form or on the enquiry detail page. On submit:</p>
     <ul>
-      <li>Generates a unique enquiry number (e.g. ENQ-2026-0006)</li>
-      <li>Logs <em>Enquiry created</em> and <em>Drawing uploaded</em> in activity history</li>
-      <li>Navigates to the enquiry detail page for design review</li>
+      <li>Generates a structured enquiry number (client + project sequence)</li>
+      <li>Logs <em>Enquiry created</em> and file upload in activity history</li>
+      <li>Opens the enquiry detail page for intake and design handoff</li>
     </ul>
     <div class="highlight">
       <strong>Important:</strong> No manufacturing order is created when the enquiry is submitted. The order is created only after design approval and explicit conversion.
@@ -410,22 +463,26 @@ function buildHtml(shots) {
   </div>
 
   <div class="section">
-    <h2>5. Design Review &amp; Revision Phases</h2>
-    <p>On the enquiry detail page, the workflow stepper shows progress through Enquiry → Design Review → Order → Manufacturing → Dispatch.</p>
-    <h3>Design workflow</h3>
+    <h2>6. Design &amp; Accounts Workflow</h2>
+    <p>The workflow stepper shows Enquiry → Design Review → Order → Manufacturing → Dispatch.</p>
+    <h3>Supervisor / intake</h3>
+    <p><strong>Accept &amp; assign to design</strong> completes intake and assigns the design in-charge in one step.</p>
+    <h3>Designer</h3>
     <ol>
-      <li><strong>Start Design Review</strong> — begins Rev 01 extraction phase</li>
-      <li><strong>Save Duct Extraction</strong> — enter duct tags, total quantity, total area (m²), and notes</li>
-      <li><strong>Approve Design</strong> — locks extraction; logs approver name and date</li>
-      <li><strong>Request Revision</strong> (optional) — sales or engineer requests changes with a reason; status becomes Revision Needed</li>
-      <li><strong>Start Next Revision Phase</strong> — increments to Rev 02, Rev 03, etc.</li>
-      <li><strong>Convert to Order</strong> — available only when design is approved</li>
+      <li>Import duct schedule (Excel) or enter extraction totals</li>
+      <li>Request revision (during in-review) if scope changes</li>
+      <li><strong>Submit to accounts</strong> when engineering sign-off is ready</li>
     </ol>
-    <p>Each design action is logged with the revision number (e.g. <em>Design updated — Rev 02</em>) and the acting user's name.</p>
+    <h3>Accounts</h3>
+    <ol>
+      <li>PO for review → PO for approval</li>
+      <li><strong>Approve design</strong> or <strong>Return to design</strong> (new revision)</li>
+    </ol>
+    <p>Then <strong>Convert to order</strong> when design is approved.</p>
   </div>
 
   <div class="section">
-    <h2>6. Production Tracking &amp; Activity Log</h2>
+    <h2>7. Production &amp; Activity Log</h2>
     <h3>Production steps (on enquiry or order detail)</h3>
     <ol>
       <li><strong>Approve Production Start</strong> — production manager authorises shop floor to begin (logged with name and date)</li>
@@ -447,7 +504,7 @@ function buildHtml(shots) {
   </div>
 
   <div class="section">
-    <h2>7. Order &amp; Dispatch</h2>
+    <h2>8. Order &amp; Dispatch</h2>
     <h3>Quantity tracking</h3>
     <table>
       <tr><th>Metric</th><th>Meaning</th></tr>
@@ -470,27 +527,9 @@ function buildHtml(shots) {
   </div>
 
   <div class="screens-section">
-    <h2>8. Screen Guide</h2>
-    <p>Screenshots captured from the live demo application.</p>
+    <h2>9. Screen Guide</h2>
+    <p>Screenshots captured from the live application at generation time.</p>
     ${shotBlocks}
-  </div>
-
-  <div class="section">
-    <h2>9. Sample Enquiry Activity Log</h2>
-    <p>Full audit trail for demo enquiry <strong>ENQ-2026-0001</strong> (AIRMASTER-WO-845 / NEW KC) showing design revisions, production approval, and dispatch trip:</p>
-    <table>
-      <tr><th>Phase</th><th>Action</th><th>Detail</th><th>Actor</th><th>Rev/Trip</th></tr>
-      <tr><td>Enquiry</td><td>Enquiry created</td><td>ENQ-2026-0001 — AIRMASTER-WO-845</td><td>Karthik S (Sales)</td><td>—</td></tr>
-      <tr><td>Design</td><td>Design review started</td><td>Rev 01</td><td>Priya N (Design Engineer)</td><td>1</td></tr>
-      <tr><td>Design</td><td>Revision requested</td><td>Client changed AHU room layout</td><td>Karthik S (Sales)</td><td>1</td></tr>
-      <tr><td>Design</td><td>Design revision started</td><td>Rev 02</td><td>Priya N (Design Engineer)</td><td>2</td></tr>
-      <tr><td>Design</td><td>Design approved</td><td>Ready for order conversion</td><td>Priya N (Design Engineer)</td><td>2</td></tr>
-      <tr><td>Order</td><td>Converted to order</td><td>AIRMASTER-WO-845</td><td>Karthik S (Sales)</td><td>—</td></tr>
-      <tr><td>Production</td><td>Production start approved</td><td>Shop floor authorised</td><td>Ravi M (Production Manager)</td><td>—</td></tr>
-      <tr><td>Production</td><td>Production progress updated</td><td>12 / 18 qty produced</td><td>Ravi M (Production Manager)</td><td>—</td></tr>
-      <tr><td>Production</td><td>Marked ready for dispatch</td><td>18 qty ready in stock</td><td>Ravi M (Production Manager)</td><td>—</td></tr>
-      <tr><td>Dispatch</td><td>Dispatch Trip 1 created</td><td>D-2026-0100 · 7 qty · KA-01-AB-1234</td><td>Suresh K (Dispatch Coordinator)</td><td>1</td></tr>
-    </table>
   </div>
 
   <div class="section">
@@ -513,22 +552,11 @@ function buildHtml(shots) {
       <tr><td>Dispatch</td><td>Ready or partially dispatched</td></tr>
       <tr><td>Completed</td><td>Fully dispatched</td></tr>
     </table>
-    <h3>Demo Order: AIRMASTER-WO-845</h3>
-    <table>
-      <tr><th>Field</th><th>Value</th></tr>
-      <tr><td>Enquiry</td><td>ENQ-2026-0001</td></tr>
-      <tr><td>Customer</td><td>NEW KC</td></tr>
-      <tr><td>Design Revision</td><td>Rev 02 (approved by Priya N)</td></tr>
-      <tr><td>Total Qty</td><td>18 ducts · 12 tags</td></tr>
-      <tr><td>Total Area</td><td>55.01 m²</td></tr>
-      <tr><td>Dispatched</td><td>7 qty (Dispatch Trip 1)</td></tr>
-      <tr><td>Balance</td><td>11 qty</td></tr>
-    </table>
   </div>
 
   <p class="footer-note">
     ECOVENT AIR SYSTEMS INDIA LLP — Quality Ducts Is Our Business<br/>
-    Generated automatically from the live demo application.
+    Document generated ${today}. For access or training, contact your system administrator.
   </p>
 
 </body>

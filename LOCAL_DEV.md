@@ -172,3 +172,26 @@ Run `npm run db:setup -- -PostgresPort 5433 -SkipInstall`.
 
 Both projects can run on the same Postgres instance — `novaerp` and `ecovent_ops`
 are separate databases. Only avoid running both apps on the same HTTP ports.
+
+---
+
+## Client PDF user guides
+
+See **`docs/CLIENT_USER_GUIDE.md`**. Generate shareable PDFs:
+
+```powershell
+npm run dev:all
+# other terminal:
+npm run docs:all
+```
+
+Outputs: `docs/ECOVENT-Admin-Portal-Guide.pdf`, `docs/ECOVENT-Mobile-Dispatch-Guide.pdf`.
+
+Production screenshots:
+
+```powershell
+$env:PDF_BASE_URL="http://94.136.190.140"
+$env:PDF_LOGIN_USER="admin"
+$env:PDF_LOGIN_PASSWORD="your-password"
+npm run docs:all
+```
