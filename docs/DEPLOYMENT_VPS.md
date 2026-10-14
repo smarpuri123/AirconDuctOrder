@@ -1,6 +1,7 @@
 # ECOVENT — VPS deployment (IP only) & dispatch APK
 
-> **Recommended:** Docker production stack — see **[DOCKER_VPS.md](./DOCKER_VPS.md)**.  
+> **Recommended:** Docker production — **[PRODUCTION_DOCKER_DEPLOY.md](./PRODUCTION_DOCKER_DEPLOY.md)** (settings checklist + commands).  
+> Overview: **[DOCKER_VPS.md](./DOCKER_VPS.md)**.  
 > Below is the legacy bare-metal guide (PM2 + host Nginx + local Postgres).
 
 **Production URL:** `http://94.136.190.140` (no domain).

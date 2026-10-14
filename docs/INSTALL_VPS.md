@@ -1,5 +1,7 @@
 # One-command VPS install
 
+**Full settings + commands:** [PRODUCTION_DOCKER_DEPLOY.md](./PRODUCTION_DOCKER_DEPLOY.md) (paths, `.env.docker`, deploy checklist).
+
 Everything is in GitHub. On a **fresh Ubuntu VPS** (SSH as your user):
 
 ## Quick install

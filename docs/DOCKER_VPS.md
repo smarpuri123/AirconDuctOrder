@@ -1,5 +1,7 @@
 # Docker on VPS (production)
 
+**Canonical guide (settings + deploy commands):** **[PRODUCTION_DOCKER_DEPLOY.md](./PRODUCTION_DOCKER_DEPLOY.md)**.
+
 **One command:** see **[INSTALL_VPS.md](./INSTALL_VPS.md)** (`scripts/install-vps.sh`).
 
 **Local development** stays direct: `npm run dev:all` and optional `npm run db:up` (Postgres only in `docker-compose.yml`).
