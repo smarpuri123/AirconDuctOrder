@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { prisma } from '../lib/prisma.js'
 import { PERMISSIONS } from '../lib/permissions.js'
 import { mapContactToApi } from '../lib/contact.js'
+import { assertCodeAvailable } from '../lib/business-codes.js'
 
 const projectBody = z.object({
   customerId: z.string().min(1),
@@ -101,10 +102,14 @@ export async function projectRoutes(app: FastifyInstance) {
     { preHandler: [app.authenticate, app.authorize(PERMISSIONS.PROJECTS_WRITE)] },
     async (request, reply) => {
       const body = projectBody.parse(request.body)
+      const code = body.code.trim()
+      const conflict = await assertCodeAvailable(code)
+      if (conflict) return reply.code(409).send({ error: conflict })
+
       const project = await prisma.project.create({
         data: {
           customerId: body.customerId,
-          code: body.code,
+          code,
           name: body.name,
           projectType: body.projectType,
           location: body.location,
@@ -127,10 +132,16 @@ export async function projectRoutes(app: FastifyInstance) {
       const existing = await prisma.project.findUnique({ where: { id } })
       if (!existing) return reply.code(404).send({ error: 'Project not found' })
 
+      const code = body.code?.trim()
+      if (code !== undefined) {
+        const conflict = await assertCodeAvailable(code, { projectId: id })
+        if (conflict) return reply.code(409).send({ error: conflict })
+      }
+
       const project = await prisma.project.update({
         where: { id },
         data: {
-          ...(body.code !== undefined ? { code: body.code } : {}),
+          ...(code !== undefined ? { code } : {}),
           ...(body.name !== undefined ? { name: body.name } : {}),
           ...(body.projectType !== undefined ? { projectType: body.projectType } : {}),
           ...(body.location !== undefined ? { location: body.location } : {}),

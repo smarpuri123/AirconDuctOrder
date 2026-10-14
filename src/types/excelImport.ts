@@ -1,11 +1,4 @@
-export type ExcelImportStep =
-  | 'upload'
-  | 'structure'
-  | 'mapping'
-  | 'rows'
-  | 'validate'
-  | 'preview'
-  | 'done'
+export type ExcelImportStep = 'upload' | 'review' | 'done'
 
 export type DuctImportFieldKey =
   | 'tagNo'

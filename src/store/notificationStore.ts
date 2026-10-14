@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { api, getToken, isApiMode } from '@/lib/api'
+import { api, getToken } from '@/lib/api'
 import {
   isPushSupported,
   pushSubscriptionToJson,
@@ -64,7 +64,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
   reconnectTimer: null,
 
   async startSession() {
-    if (!isApiMode || !getToken()) return
+    if (!getToken()) return
     const { fetchUnreadCount, fetchNotifications, fetchPreferences, connectWebSocket } = get()
     try {
       const vapid = await api<{ publicKey: string | null; pushConfigured: boolean }>(
@@ -90,13 +90,11 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
   },
 
   async fetchUnreadCount() {
-    if (!isApiMode) return
     const { count } = await api<{ count: number }>('/notifications/unread-count')
     set({ unreadCount: count })
   },
 
   async fetchNotifications(append = false) {
-    if (!isApiMode) return
     set({ loading: true })
     try {
       const cursor = append ? get().nextCursor : undefined
@@ -115,13 +113,11 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
   },
 
   async fetchPreferences() {
-    if (!isApiMode) return
     const prefs = await api<NotificationPreferences>('/notifications/preferences')
     set({ preferences: prefs })
   },
 
   async markAsRead(id) {
-    if (!isApiMode) return
     const row = await api<NotificationDto>(`/notifications/${id}/read`, { method: 'PATCH' })
     set((s) => ({
       notifications: s.notifications.map((n) => (n.id === id ? row : n)),
@@ -131,7 +127,6 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
   },
 
   async markAllAsRead() {
-    if (!isApiMode) return
     await api('/notifications/read-all', { method: 'PATCH' })
     set((s) => ({
       notifications: s.notifications.map((n) => ({ ...n, readAt: n.readAt ?? new Date().toISOString() })),
@@ -140,7 +135,6 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
   },
 
   async updatePreferences(patch) {
-    if (!isApiMode) return
     const prefs = await api<NotificationPreferences>('/notifications/preferences', {
       method: 'PATCH',
       body: JSON.stringify(patch),
@@ -149,7 +143,6 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
   },
 
   async subscribeToPush() {
-    if (!isApiMode) return { ok: false, reason: 'API mode required' }
     const { vapidPublicKey, pushConfigured } = get()
     if (!pushConfigured || !vapidPublicKey) {
       return { ok: false, reason: 'Push is not configured on the server' }
@@ -172,7 +165,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
   },
 
   async unsubscribeFromPush() {
-    if (!isApiMode || !isPushSupported()) return
+    if (!isPushSupported()) return
     try {
       const registration = await navigator.serviceWorker.ready
       const sub = await registration.pushManager.getSubscription()
@@ -190,7 +183,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
   },
 
   connectWebSocket() {
-    if (!isApiMode || !getToken()) return
+    if (!getToken()) return
     const existing = get().ws
     if (existing && (existing.readyState === WebSocket.OPEN || existing.readyState === WebSocket.CONNECTING)) {
       return

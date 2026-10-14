@@ -1,6 +1,5 @@
 import { useEffect } from 'react'
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
-import { isApiMode } from '@/lib/api'
 import { isDispatcherOnly } from '@/lib/portalAccess'
 import { useAuthStore } from '@/store/authStore'
 
@@ -26,11 +25,11 @@ export function ProtectedRoute({ loginPath = '/login', desktopOnly = false }: Pr
     )
   }
 
-  if (isApiMode && !user) {
+  if (!user) {
     return <Navigate to={loginPath} state={{ from: location.pathname }} replace />
   }
 
-  if (desktopOnly && isApiMode && user && isDispatcherOnly(user.roles)) {
+  if (desktopOnly && user && isDispatcherOnly(user.roles)) {
     return <Navigate to="/m/orders" replace />
   }
 

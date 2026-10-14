@@ -1,8 +1,9 @@
-import { getCurrentUser } from '@/lib/currentUser'
+import { pushClientLog } from '@/lib/clientLogBuffer'
 
 const API_BASE = import.meta.env.VITE_API_URL ?? '/api'
 
-export const isApiMode = import.meta.env.VITE_USE_API === 'true'
+/** Always true — local-only mock mode was removed. */
+export const isApiMode = true
 
 const TOKEN_KEY = 'ecovent_auth_token'
 
@@ -34,14 +35,6 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
   }
   if (token) headers.Authorization = `Bearer ${token}`
 
-  // Demo mode only: optional “acting as” headers. API mode uses the logged-in JWT user on the server.
-  if (!isApiMode) {
-    const acting = getCurrentUser()
-    headers['X-Operation-Actor-Name'] = acting.name
-    headers['X-Operation-Actor-Role'] = acting.role
-  }
-
-  // Fastify rejects POST/PATCH with Content-Type: application/json and no body
   let body = options.body
   if (body === undefined && ['POST', 'PUT', 'PATCH'].includes(method)) {
     body = '{}'
@@ -50,12 +43,33 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
     headers['Content-Type'] = headers['Content-Type'] ?? 'application/json'
   }
 
+  const started = performance.now()
   const res = await fetch(`${API_BASE}${path}`, { ...options, method, headers, body })
+  const durationMs = Math.round(performance.now() - started)
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({ error: res.statusText }))
-    throw new ApiError(body.error ?? body.message ?? 'Request failed', res.status)
+    const msg = body.error ?? body.message ?? 'Request failed'
+    pushClientLog({
+      kind: 'api',
+      message: `${method} ${path} failed`,
+      method,
+      path,
+      status: res.status,
+      durationMs,
+      detail: typeof msg === 'string' ? msg : JSON.stringify(msg),
+    })
+    throw new ApiError(msg, res.status)
   }
+
+  pushClientLog({
+    kind: 'api',
+    message: `${method} ${path}`,
+    method,
+    path,
+    status: res.status,
+    durationMs,
+  })
 
   return res.json() as Promise<T>
 }
@@ -67,6 +81,7 @@ export interface AuthUser {
   name: string
   roles: string[]
   permissions: string[]
+  employeeId?: string | null
 }
 
 export async function login(username: string, password: string) {

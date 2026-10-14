@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Bell } from 'lucide-react'
-import { isApiMode } from '@/lib/api'
 import { mobileRouteForNotificationEntity, routeForNotificationEntity } from '@/lib/notificationRouting'
 import { useNotificationStore } from '@/store/notificationStore'
 import { NotificationPanel } from './NotificationPanel'
@@ -15,8 +14,6 @@ export function NotificationBell({ mobile }: NotificationBellProps) {
   const navigate = useNavigate()
   const unreadCount = useNotificationStore((s) => s.unreadCount)
   const markAsRead = useNotificationStore((s) => s.markAsRead)
-
-  if (!isApiMode) return null
 
   const handleNavigate = async (id: string, _path: string | null) => {
     const item = useNotificationStore.getState().notifications.find((n) => n.id === id)

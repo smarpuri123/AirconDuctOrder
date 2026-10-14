@@ -11,11 +11,31 @@ import { projectRoutes } from './routes/projects.routes.js'
 import { masterRoutes } from './routes/masters.routes.js'
 import { orgRoutes } from './routes/org.routes.js'
 import { notificationRoutes } from './routes/notifications.routes.js'
+import { debugRoutes } from './routes/debug.routes.js'
+import { userRoutes } from './routes/users.routes.js'
+import { pushApiRequestLog } from './lib/request-log-buffer.js'
 
 export async function buildApp() {
   const app = Fastify({
     logger: config.nodeEnv !== 'test',
     bodyLimit: 50 * 1024 * 1024,
+  })
+
+  app.addHook('onResponse', async (request, reply) => {
+    const path = request.url.split('?')[0]
+    if (!path.startsWith('/api/')) return
+    if (path === '/api/health') return
+
+    const authUser = request.authUser
+    pushApiRequestLog({
+      at: new Date().toISOString(),
+      method: request.method,
+      path,
+      statusCode: reply.statusCode,
+      durationMs: Math.round(reply.elapsedTime),
+      userId: authUser?.id ?? null,
+      username: authUser?.username ?? null,
+    })
   })
 
   await app.register(cors, {
@@ -46,6 +66,8 @@ export async function buildApp() {
     await api.register(customerOrderRoutes)
     await api.register(dispatchRoutes)
     await api.register(notificationRoutes)
+    await api.register(debugRoutes)
+    await api.register(userRoutes)
   }, { prefix: '/api' })
 
   return app

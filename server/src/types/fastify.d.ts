@@ -8,6 +8,7 @@ export interface AuthUser {
   name: string
   roles: string[]
   permissions: PermissionCode[]
+  employeeId: string | null
 }
 
 declare module '@fastify/jwt' {

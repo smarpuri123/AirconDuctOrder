@@ -2,6 +2,20 @@ import * as XLSX from 'xlsx'
 import type { Order } from '@/types'
 import { getOrderBalanceArea, getOrderBalanceQty, getOrderDispatchedArea, getOrderDispatchedQty } from './calculations'
 import { dispatchService } from '@/services/dispatchService'
+import { ductScheduleTemplateHeaderRow } from '@/lib/excelImport/canonicalTemplate'
+
+const DUCT_SCHEDULE_TEMPLATE_FILE = 'ECOVENT-duct-schedule-template.xlsx'
+const DUCT_SCHEDULE_TEMPLATE_SHEET = 'Duct schedule'
+
+/** Blank duct schedule with the exact columns required for design import. */
+export function exportDuctScheduleImportTemplate(): void {
+  const headers = ductScheduleTemplateHeaderRow()
+  const ws = XLSX.utils.aoa_to_sheet([headers])
+  ws['!cols'] = headers.map(() => ({ wch: 14 }))
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, DUCT_SCHEDULE_TEMPLATE_SHEET)
+  XLSX.writeFile(wb, DUCT_SCHEDULE_TEMPLATE_FILE)
+}
 
 export function exportOriginalOrder(order: Order): void {
   const data = order.items.map((item) => ({

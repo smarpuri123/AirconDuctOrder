@@ -588,7 +588,12 @@ async function linkPortalUsersToEmployees() {
     if (!user || !employee) continue
     await prisma.employee.update({
       where: { id: employee.id },
-      data: { userId: user.id },
+      data: {
+        userId: user.id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+      },
     })
   }
 }
@@ -658,6 +663,9 @@ export async function seedDatabase() {
 
   console.log('Linking portal logins to employees...')
   await linkPortalUsersToEmployees()
+  const { syncEmployeeNamesFromPortalUsers } = await import('../src/services/user.service.js')
+  const synced = await syncEmployeeNamesFromPortalUsers()
+  if (synced > 0) console.log(`Synced ${synced} employee name(s) from portal users.`)
 
   console.log('Seed complete.')
   console.log('  admin / admin@123')

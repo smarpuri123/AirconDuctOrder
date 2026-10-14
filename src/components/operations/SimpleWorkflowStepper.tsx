@@ -27,7 +27,7 @@ export function SimpleWorkflowStepper({ steps }: SimpleWorkflowStepperProps) {
               )}
             </div>
             <p
-              className={`text-[11px] font-medium mt-2 text-center leading-tight ${
+              className={`text-[10px] sm:text-[11px] font-medium mt-2 text-center leading-tight px-0.5 ${
                 step.status === 'current' ? 'text-secondary' : 'text-text-secondary'
               }`}
             >

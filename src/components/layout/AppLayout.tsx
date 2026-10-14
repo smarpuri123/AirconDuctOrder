@@ -19,6 +19,7 @@ function getPageTitle(pathname: string): string {
   if (pathname.startsWith('/orders/') && pathname.includes('/dispatch')) return 'Create Dispatch'
   if (pathname.startsWith('/orders/')) return 'Order'
   if (pathname.startsWith('/dispatch/')) return 'Dispatch'
+  if (pathname.startsWith('/sys/debug')) return 'Debug logs'
   return 'ECOVENT Operations'
 }
 

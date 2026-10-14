@@ -3,10 +3,13 @@ import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, ChevronDown, ChevronUp } from 'lucide-react'
 import { enquiryService } from '@/services/enquiryService'
 import { crmService } from '@/services/crmService'
+import { ProjectCombobox } from '@/components/enquiry/ProjectCombobox'
 import { masterService } from '@/services/masterService'
 import { orgService } from '@/services/orgService'
 import type { Employee } from '@/types/org'
 import { getCurrentUser } from '@/lib/currentUser'
+import { useAuthStore } from '@/store/authStore'
+import { userService } from '@/services/userService'
 import { getTodayISO } from '@/lib/calculations'
 import { ENQUIRY_FILE_ACCEPT, filesToPayloads } from '@/lib/enquiryDocuments'
 import { Card } from '@/components/ui/Card'
@@ -27,14 +30,12 @@ export function CreateEnquiryPage() {
   const [personInChargeId, setPersonInChargeId] = useState('')
   const [showContact, setShowContact] = useState(false)
   const [showExtras, setShowExtras] = useState(false)
-  const [useNewProject, setUseNewProject] = useState(false)
   const [pendingFiles, setPendingFiles] = useState<File[]>([])
+  const [creatingProject, setCreatingProject] = useState(false)
 
   const [customerId, setCustomerId] = useState('')
   const [projectId, setProjectId] = useState('')
   const [contactId, setContactId] = useState('')
-
-  const [newProject, setNewProject] = useState({ name: '', location: '' })
   const [form, setForm] = useState({
     enquiryDate: getTodayISO(),
     expectedCompletion: '',
@@ -50,16 +51,24 @@ export function CreateEnquiryPage() {
     Promise.all([
       crmService.listClients(),
       masterService.enquiryPriorities(),
-      orgService.listEmployeesForStage('enquiry'),
-    ]).then(([c, p, emps]) => {
+      orgService.listResponsibilityAssignees(),
+      userService.listAssignableUsers(),
+    ]).then(([c, p, emps, assignable]) => {
       setClients(c)
       setPriorities(p)
       setEmployees(emps)
-      const actor = getCurrentUser().name
-      const match = emps.find((e) => e.name === actor)
-      if (match) setPersonInChargeId(match.id)
-      else if (emps[0]) setPersonInChargeId(emps[0].id)
+      const authUserId = useAuthStore.getState().user?.id
+      const self = assignable.find((row) => row.userId === authUserId)
+      let picId = self?.employeeId ?? ''
+      if (!picId) {
+        const byName = emps.find((e) => e.name === getCurrentUser().name)
+        if (byName) picId = byName.id
+      }
+      if (!picId && emps[0]) picId = emps[0].id
+      if (picId) setPersonInChargeId(picId)
       if (c.length > 0) setCustomerId(c[0].id)
+      const actor = getCurrentUser()
+      setForm((f) => ({ ...f, salesPerson: actor.name }))
     })
   }, [])
 
@@ -106,12 +115,8 @@ export function CreateEnquiryPage() {
       setError('Select a client.')
       return
     }
-    if (!useNewProject && !projectId) {
-      setError('Select a project, or add a new one.')
-      return
-    }
-    if (useNewProject && !newProject.name.trim()) {
-      setError('Enter a name for the new project.')
+    if (!projectId) {
+      setError('Select a project, or type a name and add it.')
       return
     }
 
@@ -119,14 +124,14 @@ export function CreateEnquiryPage() {
 
     const payload: CreateEnquiryInput = {
       customerId,
-      projectId: useNewProject ? undefined : projectId,
+      projectId,
       contactId: contactId || undefined,
       customerName: selectedClient?.name ?? '',
       contactPerson: selectedContact?.name,
       phone: form.phone.trim() || undefined,
       email: form.email.trim() || undefined,
-      projectName: useNewProject ? newProject.name.trim() : (selectedProject?.name ?? ''),
-      location: useNewProject ? newProject.location.trim() : (selectedProject?.location ?? ''),
+      projectName: selectedProject?.name ?? '',
+      location: selectedProject?.location ?? '',
       enquiryDate: form.enquiryDate,
       expectedCompletion: form.expectedCompletion || undefined,
       personInChargeId: personInChargeId || undefined,
@@ -179,57 +184,57 @@ export function CreateEnquiryPage() {
               ]}
             />
 
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={useNewProject}
-                onChange={(e) => setUseNewProject(e.target.checked)}
-              />
-              Quick-add new project for this client
-            </label>
-
-            {!useNewProject ? (
-              <Select
-                label="Project"
-                required
-                value={projectId}
-                onChange={(e) => setProjectId(e.target.value)}
-                options={[
-                  { value: '', label: projects.length ? 'Select project' : 'No projects — add one in Clients' },
-                  ...projects.map((p) => ({ value: p.id, label: `${p.code} — ${p.name}` })),
-                ]}
-              />
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Input
-                  label="Project name"
-                  required
-                  value={newProject.name}
-                  onChange={(e) => setNewProject((p) => ({ ...p, name: e.target.value }))}
-                />
-                <Input
-                  label="Location"
-                  value={newProject.location}
-                  onChange={(e) => setNewProject((p) => ({ ...p, location: e.target.value }))}
-                />
-              </div>
-            )}
+            <ProjectCombobox
+              key={customerId}
+              clients={clients}
+              projects={projects}
+              value={projectId}
+              disabled={!customerId}
+              busy={creatingProject}
+              onSelect={setProjectId}
+              onCreate={async ({ name, code }) => {
+                setError('')
+                setCreatingProject(true)
+                try {
+                  const project = await crmService.createProject(customerId, {
+                    code,
+                    name,
+                  })
+                  setClients((prev) =>
+                    prev.map((client) =>
+                      client.id === customerId
+                        ? { ...client, projects: [...(client.projects ?? []), project] }
+                        : client,
+                    ),
+                  )
+                  setProjectId(project.id)
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : 'Failed to add project')
+                  throw err
+                } finally {
+                  setCreatingProject(false)
+                }
+              }}
+            />
 
             <Select
-              label="Person in charge (internal)"
+              label="Responsibility (person in charge)"
               value={personInChargeId}
               onChange={(e) => setPersonInChargeId(e.target.value)}
               options={[
-                { value: '', label: employees.length ? 'Select PIC' : 'Add employees in Settings' },
+                {
+                  value: '',
+                  label: employees.length ? 'Select responsible person' : 'Add portal users in Settings',
+                },
                 ...employees.map((e) => ({
                   value: e.id,
-                  label: `${e.name}${e.jobRoles[0] ? ` — ${e.jobRoles[0].label}` : ''}`,
+                  label: `${e.name}${e.jobRoles.length ? ` — ${e.jobRoles.map((r) => r.label).join(', ')}` : ''}`,
                 })),
               ]}
             />
 
             <p className="text-xs text-text-secondary">
-              Maintain masters in{' '}
+              If the project is not in the list, type its name, then set a code that is not already used. You can still edit masters in{' '}
               <button type="button" className="text-primary underline" onClick={() => navigate('/clients')}>
                 Clients
               </button>

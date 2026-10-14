@@ -259,30 +259,18 @@ export interface Enquiry {
 
 
 
+export type WorkflowDisplayStage =
+  | 'enquiry'
+  | 'design_review'
+  | 'approval_processing'
+  | 'manufacturing'
+  | 'dispatch'
+  | 'completed'
+
 export interface WorkflowStep {
-
-  stage: EnquiryStage
-
+  stage: WorkflowDisplayStage
   label: string
-
   status: 'completed' | 'current' | 'upcoming'
-
 }
-
-
-
-export const WORKFLOW_STEPS: { stage: EnquiryStage; label: string }[] = [
-
-  { stage: 'enquiry', label: 'Enquiry' },
-
-  { stage: 'design_review', label: 'Design Review' },
-
-  { stage: 'order', label: 'Order' },
-
-  { stage: 'manufacturing', label: 'Manufacturing' },
-
-  { stage: 'dispatch', label: 'Dispatch' },
-
-]
 
 

@@ -20,16 +20,23 @@ import {
   previousDesignStatus,
 } from '../lib/design-workflow.js'
 import { isOrderFullyDelivered, orderHasDispatches } from '../lib/order-workflow.js'
-import type { DesignerEnquiryListScope } from '../lib/enquiry-access.js'
+import type { EnquiryListScope } from '../lib/enquiry-access.js'
 import { listScopeToPrismaWhere } from '../lib/enquiry-access.js'
+import {
+  employeeDisplayName,
+  employeeDisplayNameFromRow,
+  jobRoleLabel,
+} from '../lib/employee-display.js'
+
+const employeeWithUser = { include: { user: { select: { name: true } } } }
 
 const enquiryInclude = {
   customer: true,
   activities: { orderBy: { timestamp: 'desc' as const } },
   documents: { orderBy: { uploadedAt: 'desc' as const } },
   ductLines: { orderBy: { sortOrder: 'asc' as const } },
-  personInCharge: true,
-  currentAssignee: true,
+  personInCharge: employeeWithUser,
+  currentAssignee: employeeWithUser,
   customerOrder: { include: { items: true } },
 }
 
@@ -229,7 +236,7 @@ async function findOrCreateCustomer(name: string) {
   })
 }
 
-export async function listEnquiries(scope: DesignerEnquiryListScope = { mode: 'all' }) {
+export async function listEnquiries(scope: EnquiryListScope = { mode: 'all' }) {
   const enquiries = await prisma.enquiry.findMany({
     where: listScopeToPrismaWhere(scope),
     include: enquiryInclude,
@@ -459,12 +466,16 @@ export async function completeEnquiryIntake(id: string, actor: ActivityActor) {
 
 async function resolvePersonInCharge(input: { personInChargeId?: string; salesPerson?: string }) {
   if (input.personInChargeId) {
-    const emp = await prisma.employee.findUnique({ where: { id: input.personInChargeId } })
+    const emp = await prisma.employee.findUnique({
+      where: { id: input.personInChargeId },
+      include: { user: { select: { name: true } } },
+    })
     if (!emp) throw new Error('Person in charge not found')
+    const displayName = employeeDisplayNameFromRow(emp) ?? emp.name
     return {
       personInChargeId: emp.id,
       currentAssigneeId: emp.id,
-      salesPerson: emp.name,
+      salesPerson: displayName,
       assigneeRoleCode: null as string | null,
     }
   }
@@ -544,53 +555,89 @@ export async function createEnquiry(input: CreateEnquiryPayload, actor: Activity
   return getEnquiryById(enquiry.id)
 }
 
+/** Assign design in-charge; stays in queue (PENDING) until designer begins work. */
+export async function assignDesignInCharge(
+  id: string,
+  actor: ActivityActor,
+  handoff: { assigneeId: string; assigneeRoleCode?: string },
+) {
+  const enquiry = await prisma.enquiry.findUnique({ where: { id } })
+  if (!enquiry) return null
+  if (enquiry.customerOrderId) return null
+
+  const assignee = await prisma.employee.findUnique({
+    where: { id: handoff.assigneeId },
+    include: { user: { select: { name: true } } },
+  })
+  if (!assignee) throw new Error('Assignee not found')
+
+  const assigneeName = employeeDisplayNameFromRow(assignee)
+  const handoffRoleLabel = await jobRoleLabel(handoff.assigneeRoleCode)
+  const inDesignQueue =
+    enquiry.designStatus === 'PENDING' || enquiry.designStatus === 'REVISION_NEEDED'
+
+  await prisma.enquiry.update({
+    where: { id },
+    data: {
+      status: 'DESIGN_REVIEW',
+      currentAssigneeId: assignee.id,
+      currentAssigneeRoleCode: handoff.assigneeRoleCode ?? null,
+      ...(inDesignQueue ? {} : { designStatus: enquiry.designStatus }),
+    },
+  })
+
+  const fromName =
+    (await employeeDisplayName(enquiry.personInChargeId)) ?? enquiry.salesPerson?.trim() ?? '—'
+
+  const title = inDesignQueue
+    ? `Assigned to design in-charge — ${formatRevision(enquiry.designRevision)}`
+    : `Design in-charge updated — ${formatRevision(enquiry.designRevision)}`
+
+  await logActivity(id, {
+    phase: 'design',
+    title,
+    detail: `Handoff: ${fromName} → ${assigneeName}${handoffRoleLabel ? ` (${handoffRoleLabel})` : ''}`,
+    actor: actor.name,
+    actorRole: actor.role,
+    revision: enquiry.designRevision,
+    metadata: {
+      assigneeId: handoff.assigneeId,
+      assigneeRoleCode: handoff.assigneeRoleCode,
+    },
+  })
+
+  return getEnquiryById(id)
+}
+
+/** @deprecated Use assignDesignInCharge — kept for route name compatibility. */
 export async function startDesignReview(
   id: string,
   actor: ActivityActor,
   handoff?: { assigneeId: string; assigneeRoleCode?: string },
 ) {
+  if (!handoff?.assigneeId) return null
+  return assignDesignInCharge(id, actor, handoff)
+}
+
+/** Designer marks enquiry as actively in progress (extraction / Excel import). */
+export async function beginDesignWork(id: string, actor: ActivityActor) {
   const enquiry = await prisma.enquiry.findUnique({ where: { id } })
-  if (!enquiry) return null
+  if (!enquiry || enquiry.customerOrderId) return null
+  if (enquiry.designStatus !== 'PENDING') return null
+  if (!enquiry.currentAssigneeId) return null
 
-  let assigneeName: string | undefined
-  if (handoff?.assigneeId) {
-    const assignee = await prisma.employee.findUnique({ where: { id: handoff.assigneeId } })
-    if (!assignee) throw new Error('Assignee not found')
-    assigneeName = assignee.name
-    await prisma.enquiry.update({
-      where: { id },
-      data: {
-        status: 'DESIGN_REVIEW',
-        designStatus: 'IN_REVIEW',
-        currentAssigneeId: assignee.id,
-        currentAssigneeRoleCode: handoff.assigneeRoleCode ?? null,
-      },
-    })
-  } else {
-    await prisma.enquiry.update({
-      where: { id },
-      data: { status: 'DESIGN_REVIEW', designStatus: 'IN_REVIEW' },
-    })
-  }
-
-  const pic =
-    enquiry.personInChargeId
-      ? await prisma.employee.findUnique({ where: { id: enquiry.personInChargeId } })
-      : null
-  const fromName = pic?.name ?? enquiry.salesPerson ?? '—'
+  const moved = await transitionEnquiryDesignStatus(id, ['PENDING'], {
+    designStatus: 'IN_REVIEW',
+    status: 'DESIGN_REVIEW',
+  })
+  if (!moved) return null
 
   await logActivity(id, {
     phase: 'design',
-    title: `Design review started — ${formatRevision(enquiry.designRevision)}`,
-    detail: assigneeName
-      ? `Handoff: ${fromName ?? '—'} → ${assigneeName}${handoff?.assigneeRoleCode ? ` (${handoff.assigneeRoleCode})` : ''}`
-      : undefined,
+    title: `Started working on the design — ${formatRevision(enquiry.designRevision)}`,
     actor: actor.name,
     actorRole: actor.role,
     revision: enquiry.designRevision,
-    metadata: handoff?.assigneeId
-      ? { assigneeId: handoff.assigneeId, assigneeRoleCode: handoff.assigneeRoleCode }
-      : undefined,
   })
 
   return getEnquiryById(id)
@@ -606,7 +653,7 @@ export async function acceptEnquiryAndAssignDesign(
   if (!enquiry) return null
   if (enquiry.customerOrderId) return null
   if (enquiry.designStatus !== 'PENDING') {
-    return startDesignReview(id, actor, handoff)
+    return assignDesignInCharge(id, actor, handoff)
   }
 
   if (enquiry.status === 'NEW') {
@@ -625,7 +672,7 @@ export async function acceptEnquiryAndAssignDesign(
     }
   }
 
-  return startDesignReview(id, actor, handoff)
+  return assignDesignInCharge(id, actor, handoff)
 }
 
 export async function saveDesignExtraction(
@@ -814,10 +861,16 @@ function hasDuctExtraction(enquiry: {
   )
 }
 
+async function hasImportedDuctSchedule(enquiryId: string): Promise<boolean> {
+  const lineCount = await prisma.enquiryDuctLine.count({ where: { enquiryId } })
+  return lineCount > 0
+}
+
 export async function submitDesignToAccounts(id: string, actor: ActivityActor) {
   const enquiry = await prisma.enquiry.findUnique({ where: { id } })
   if (!enquiry || enquiry.designStatus !== 'IN_REVIEW') return null
   if (!hasDuctExtraction(enquiry)) return null
+  if (!(await hasImportedDuctSchedule(id))) return null
 
   const moved = await transitionEnquiryDesignStatus(id, ['IN_REVIEW'], {
     designStatus: 'SUBMITTED_TO_ACCOUNTS',
@@ -1058,7 +1111,8 @@ export async function resumeDesignRevision(id: string, actor: ActivityActor) {
 
   await logActivity(id, {
     phase: 'design',
-    title: `Design revision started — ${formatRevision(nextRevision)}`,
+    title: `Started working on the design — ${formatRevision(nextRevision)}`,
+    detail: 'Revision phase',
     actor: actor.name,
     actorRole: actor.role,
     revision: nextRevision,

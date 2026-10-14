@@ -8,6 +8,8 @@ import { PERMISSIONS } from '../lib/permissions.js'
 
 import { mapContactToApi } from '../lib/contact.js'
 
+import { assertCodeAvailable } from '../lib/business-codes.js'
+
 
 
 const customerBody = z.object({
@@ -244,6 +246,10 @@ export async function customerRoutes(app: FastifyInstance) {
 
         body.name.replace(/\s+/g, '-').toUpperCase().slice(0, 20)
 
+      const conflict = await assertCodeAvailable(code)
+
+      if (conflict) return reply.code(409).send({ error: conflict })
+
       const emptyToNull = (v?: string) => (v?.trim() ? v.trim() : null)
 
       const customer = await prisma.customer.create({
@@ -288,6 +294,14 @@ export async function customerRoutes(app: FastifyInstance) {
       if (!existing) return reply.code(404).send({ error: 'Customer not found' })
 
       const emptyToNull = (v?: string) => (v === undefined ? undefined : v?.trim() ? v.trim() : null)
+
+      if (body.code !== undefined) {
+        const nextCode = emptyToNull(body.code)
+        if (nextCode) {
+          const conflict = await assertCodeAvailable(nextCode, { customerId: id })
+          if (conflict) return reply.code(409).send({ error: conflict })
+        }
+      }
 
       const customer = await prisma.customer.update({
         where: { id },

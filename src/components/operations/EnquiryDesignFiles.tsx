@@ -7,7 +7,6 @@ import {
   downloadEnquiryDocument,
   filesToPayloadsWithProgress,
 } from '@/lib/enquiryDocuments'
-import { isApiMode } from '@/lib/api'
 import { enquiryService } from '@/services/enquiryService'
 import type { EnquiryDesignDocument } from '@/types/enquiry'
 
@@ -110,7 +109,7 @@ export function EnquiryDesignFiles({
                 size="sm"
                 variant="secondary"
                 className="min-w-0 shrink-0"
-                onClick={() => downloadEnquiryDocument({ ...doc, enquiryId }, isApiMode)}
+                onClick={() => downloadEnquiryDocument({ ...doc, enquiryId })}
               >
                 <Download className="w-4 h-4" />
                 Download

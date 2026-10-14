@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { clearToken, fetchMe, getToken, isApiMode, login as apiLogin, type AuthUser } from '@/lib/api'
+import { clearToken, fetchMe, getToken, login as apiLogin, type AuthUser } from '@/lib/api'
 import { hydrateFromApi, clearDataCache } from '@/lib/dataCache'
 
 interface AuthState {
@@ -20,24 +20,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   async login(username, password) {
     set({ loading: true })
     try {
-      if (isApiMode) {
-        const { user } = await apiLogin(username, password)
-        set({ user, loading: false, initialized: true })
-        await hydrateFromApi()
-      } else {
-        set({
-          user: {
-            id: 'demo',
-            username,
-            email: `${username}@ecovent.com`,
-            name: 'Demo User',
-            roles: ['ADMIN'],
-            permissions: [],
-          },
-          loading: false,
-          initialized: true,
-        })
-      }
+      const { user } = await apiLogin(username, password)
+      set({ user, loading: false, initialized: true })
+      await hydrateFromApi()
     } catch (err) {
       set({ loading: false })
       throw err
@@ -51,11 +36,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   async initialize() {
-    if (!isApiMode) {
-      set({ initialized: true })
-      return
-    }
-
     const token = getToken()
     if (!token) {
       set({ initialized: true })

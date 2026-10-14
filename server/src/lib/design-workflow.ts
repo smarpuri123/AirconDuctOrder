@@ -74,13 +74,16 @@ export function canRequestDesignRevision(designStatus: string, orderDelivered: b
 
 export function canRevertDesignStep(designStatus: string, orderDelivered: boolean): boolean {
   if (orderDelivered) return false
-  return previousDesignStatus(designStatus) !== null
+  const prev = previousDesignStatus(designStatus)
+  if (!prev) return false
+  if (prev === DESIGN_STATUSES.IN_REVIEW) return false
+  return true
 }
 
 export function designStatusLabel(status: string): string {
   const labels: Record<string, string> = {
     PENDING: 'Pending intake',
-    IN_REVIEW: 'In design review',
+    IN_REVIEW: 'Working on design',
     REVISION_NEEDED: 'Revision needed',
     SUBMITTED_TO_ACCOUNTS: 'Submitted to accounts',
     PO_FOR_REVIEW: 'PO for review',

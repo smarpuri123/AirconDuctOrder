@@ -16,6 +16,7 @@ import {
   clientFormToPayload,
   emptyClientForm,
 } from '@/components/clients/ClientCompanyFields'
+import { codeConflictMessage, findCodeConflict, nextProjectCode } from '@/lib/businessCodes'
 
 type DetailTab = 'contacts' | 'projects'
 type ClientModal = 'new' | 'edit' | 'contact' | 'project' | 'link' | null
@@ -55,6 +56,7 @@ export function ClientsPage() {
   const [contactForm, setContactForm] = useState({ firstName: '', lastName: '', designationCode: '', phone: '' })
   const [projectForm, setProjectForm] = useState({ code: '', name: '', location: '' })
   const [linkForm, setLinkForm] = useState({ contactId: '', role: 'CLIENT_PM', isPrimary: false })
+  const [saveError, setSaveError] = useState('')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -125,6 +127,12 @@ export function ClientsPage() {
   const projects: ProjectSummary[] = selected?.projects ?? []
   const contacts: Contact[] = (selected?.contacts ?? []).filter((c) => c.active)
 
+  const newClientCodeError = codeConflictMessage(findCodeConflict(newClient.code, clients))
+  const editClientCodeError = codeConflictMessage(
+    findCodeConflict(editClient.code, clients, { clientId: selected?.id }),
+  )
+  const projectCodeError = codeConflictMessage(findCodeConflict(projectForm.code, clients))
+
   useEffect(() => {
     if (tab !== 'projects' || !projects.length) return
     if (!selectedProjectId || !projects.some((p) => p.id === selectedProjectId)) {
@@ -145,21 +153,31 @@ export function ClientsPage() {
   }
 
   const handleCreateClient = async () => {
-    if (!newClient.name.trim()) return
-    const client = await crmService.createClient(clientFormToPayload(newClient))
-    setClients((prev) => [...prev, client])
-    setSelectedId(client.id)
-    setTab('contacts')
-    setModal(null)
-    setMessage('Client created')
+    if (!newClient.name.trim() || newClientCodeError) return
+    setSaveError('')
+    try {
+      const client = await crmService.createClient(clientFormToPayload(newClient))
+      setClients((prev) => [...prev, client])
+      setSelectedId(client.id)
+      setTab('contacts')
+      setModal(null)
+      setMessage('Client created')
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Failed to create client')
+    }
   }
 
   const handleSaveClientDetails = async () => {
-    if (!selected || !editClient.name.trim()) return
-    const updated = await crmService.updateClient(selected.id, clientFormToPayload(editClient))
-    setClients((prev) => prev.map((c) => (c.id === updated.id ? { ...c, ...updated } : c)))
-    setModal(null)
-    setMessage('Company details saved')
+    if (!selected || !editClient.name.trim() || editClientCodeError) return
+    setSaveError('')
+    try {
+      const updated = await crmService.updateClient(selected.id, clientFormToPayload(editClient))
+      setClients((prev) => prev.map((c) => (c.id === updated.id ? { ...c, ...updated } : c)))
+      setModal(null)
+      setMessage('Company details saved')
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Failed to save client')
+    }
   }
 
   const handleAddContact = async () => {
@@ -185,18 +203,23 @@ export function ClientsPage() {
   }
 
   const handleAddProject = async () => {
-    if (!selected || !projectForm.code.trim() || !projectForm.name.trim()) return
-    const project = await crmService.createProject(selected.id, {
-      code: projectForm.code.trim(),
-      name: projectForm.name.trim(),
-      location: projectForm.location.trim() || undefined,
-    })
-    await refreshClient(selected.id)
-    setProjectForm({ code: '', name: '', location: '' })
-    setSelectedProjectId(project.id)
-    setTab('projects')
-    setModal(null)
-    setMessage('Project added')
+    if (!selected || !projectForm.code.trim() || !projectForm.name.trim() || projectCodeError) return
+    setSaveError('')
+    try {
+      const project = await crmService.createProject(selected.id, {
+        code: projectForm.code.trim(),
+        name: projectForm.name.trim(),
+        location: projectForm.location.trim() || undefined,
+      })
+      await refreshClient(selected.id)
+      setProjectForm({ code: '', name: '', location: '' })
+      setSelectedProjectId(project.id)
+      setTab('projects')
+      setModal(null)
+      setMessage('Project added')
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Failed to add project')
+    }
   }
 
   const handleLinkContact = async () => {
@@ -340,7 +363,15 @@ export function ClientsPage() {
                 <div className="mt-4 space-y-5">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="text-sm font-medium text-text-secondary">Sites &amp; jobs</p>
-                    <Button type="button" size="sm" onClick={() => setModal('project')}>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => {
+                        setSaveError('')
+                        setProjectForm({ code: nextProjectCode(clients), name: '', location: '' })
+                        setModal('project')
+                      }}
+                    >
                       <Plus className="w-4 h-4" />
                       Add project
                     </Button>
@@ -437,7 +468,13 @@ export function ClientsPage() {
           </>
         }
       >
-        <ClientCompanyFields value={newClient} onChange={setNewClient} nameRequired />
+        <ClientCompanyFields
+          value={newClient}
+          onChange={setNewClient}
+          nameRequired
+          codeError={newClientCodeError}
+        />
+        {saveError && <p className="text-sm text-error mt-3">{saveError}</p>}
       </Modal>
 
       <Modal
@@ -452,7 +489,13 @@ export function ClientsPage() {
           </>
         }
       >
-        <ClientCompanyFields value={editClient} onChange={setEditClient} nameRequired />
+        <ClientCompanyFields
+          value={editClient}
+          onChange={setEditClient}
+          nameRequired
+          codeError={editClientCodeError}
+        />
+        {saveError && <p className="text-sm text-error mt-3">{saveError}</p>}
       </Modal>
 
       <Modal
@@ -505,7 +548,7 @@ export function ClientsPage() {
         footer={
           <>
             <Button type="button" variant="ghost" onClick={() => setModal(null)}>Cancel</Button>
-            <Button type="button" onClick={handleAddProject}>Save project</Button>
+            <Button type="button" onClick={handleAddProject} disabled={Boolean(projectCodeError)}>Save project</Button>
           </>
         }
       >
@@ -514,6 +557,8 @@ export function ClientsPage() {
             label="Project code"
             value={projectForm.code}
             onChange={(e) => setProjectForm((f) => ({ ...f, code: e.target.value }))}
+            error={projectCodeError}
+            helper="Must not match a client code or another project code."
             required
           />
           <Input
@@ -527,6 +572,7 @@ export function ClientsPage() {
             value={projectForm.location}
             onChange={(e) => setProjectForm((f) => ({ ...f, location: e.target.value }))}
           />
+          {saveError && <p className="text-sm text-error">{saveError}</p>}
         </div>
       </Modal>
 

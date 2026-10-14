@@ -13,11 +13,13 @@ function mapEmployee(e: {
   departmentId: string | null
   active: boolean
   department: { id: string; code: string; name: string } | null
+  user?: { name: string; email: string | null; phone: string | null } | null
   jobRoles: Array<{ isPrimary: boolean; jobRole: { id: string; code: string; label: string } }>
 }) {
+  const displayName = e.user?.name?.trim() || e.name
   return {
     id: e.id,
-    name: e.name,
+    name: displayName,
     email: e.email,
     phone: e.phone,
     employeeCode: e.employeeCode,
@@ -34,6 +36,7 @@ function mapEmployee(e: {
 
 const employeeInclude = {
   department: true,
+  user: { select: { name: true, email: true, phone: true } },
   jobRoles: { include: { jobRole: true } },
 }
 

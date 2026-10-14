@@ -1,5 +1,4 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
-import { isApiMode } from '@/lib/api'
 import { canAccessPortalPath, defaultPortalPath } from '@/lib/portalAccess'
 import { usePortalRoles } from '@/hooks/usePortalRoles'
 
@@ -7,10 +6,6 @@ import { usePortalRoles } from '@/hooks/usePortalRoles'
 export function PortalAccessGate() {
   const location = useLocation()
   const roles = usePortalRoles()
-
-  if (!isApiMode) {
-    return <Outlet />
-  }
 
   if (roles.length === 0) {
     return <Outlet />

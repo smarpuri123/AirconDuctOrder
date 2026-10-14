@@ -1,10 +1,9 @@
 import { PHASE_LABELS } from '@/lib/activity'
+import { PORTAL_ROLE_LABELS } from '@/lib/stagePortalRoles'
 
 import { formatDate } from '@/lib/calculations'
 
 import { downloadEnquiryDocument } from '@/lib/enquiryDocuments'
-
-import { isApiMode } from '@/lib/api'
 
 import type { ActivityEntry, ActivityPhase, EnquiryDesignDocument } from '@/types/enquiry'
 
@@ -25,6 +24,16 @@ const PHASE_COLORS: Record<ActivityPhase, string> = {
 }
 
 
+
+function formatActorRole(role: string): string {
+  return role
+    .split(',')
+    .map((part) => {
+      const code = part.trim()
+      return PORTAL_ROLE_LABELS[code] ?? code
+    })
+    .join(', ')
+}
 
 function formatTimestamp(ts: string): string {
 
@@ -252,7 +261,7 @@ function ActivityRow({
 
                   className="text-xs text-primary hover:underline text-left"
 
-                  onClick={() => downloadEnquiryDocument(doc, isApiMode)}
+                  onClick={() => downloadEnquiryDocument(doc)}
 
                 >
 
@@ -271,13 +280,12 @@ function ActivityRow({
         )}
 
         <p className="text-xs text-text-secondary mt-1">
-
           <span className="font-medium text-text-primary">{entry.actor}</span>
-
+          {entry.actorRole ? (
+            <span className="text-text-secondary"> · {formatActorRole(entry.actorRole)}</span>
+          ) : null}
           <span className="mx-1">·</span>
-
           {formatTimestamp(entry.timestamp)}
-
         </p>
 
       </div>

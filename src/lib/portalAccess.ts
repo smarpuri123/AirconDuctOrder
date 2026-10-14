@@ -22,6 +22,13 @@ export function isDesignerOnlyUser(roles: string[]): boolean {
   return roles.includes(PORTAL_ROLES.DESIGNER)
 }
 
+/** Accounts portal user without admin/supervisor/designer — list is approval-queue only. */
+export function isAccountsOnlyUser(roles: string[]): boolean {
+  if (hasAnyRole(roles, [PORTAL_ROLES.ADMIN, PORTAL_ROLES.SUPERVISOR])) return false
+  if (roles.includes(PORTAL_ROLES.DESIGNER)) return false
+  return roles.includes(PORTAL_ROLES.ACCOUNTS)
+}
+
 export function isDispatcherOnly(roles: string[]): boolean {
   const normalized = roles.map((r) => (r === 'DISPATCH' ? PORTAL_ROLES.DISPATCHER : r))
   return normalized.includes(PORTAL_ROLES.DISPATCHER) && normalized.length === 1
@@ -84,6 +91,15 @@ export function canAccessDispatchList(roles: string[]): boolean {
 
 export function canAccessSettings(roles: string[]): boolean {
   return hasAnyRole(roles, [PORTAL_ROLES.ADMIN, PORTAL_ROLES.SUPERVISOR])
+}
+
+export function canManagePortalUsers(roles: string[]): boolean {
+  return hasAnyRole(roles, [PORTAL_ROLES.ADMIN, PORTAL_ROLES.SUPERVISOR])
+}
+
+/** Hidden diagnostics — direct URL only, not in sidebar. */
+export function canAccessAdminDebugLogs(roles: string[]): boolean {
+  return roles.includes(PORTAL_ROLES.ADMIN)
 }
 
 /** Full activity timeline + workflow summary on enquiry detail. */
@@ -160,18 +176,6 @@ export function canAccessPortalPath(roles: string[], pathname: string): boolean 
   if (pathname.startsWith('/orders')) return canAccessOrders(roles)
   if (pathname.startsWith('/dispatch')) return canAccessDispatchList(roles)
   if (pathname.startsWith('/settings')) return canAccessSettings(roles)
+  if (pathname.startsWith('/sys/debug')) return canAccessAdminDebugLogs(roles)
   return true
-}
-
-/** Demo mode: map acting-as label to API role codes. */
-export function demoActorRoleToPortalRoles(actorRoleLabel: string): string[] {
-  const normalized = actorRoleLabel.toLowerCase()
-  if (normalized.includes('admin')) return [PORTAL_ROLES.ADMIN]
-  if (normalized.includes('supervisor')) return [PORTAL_ROLES.SUPERVISOR]
-  if (normalized.includes('design')) return [PORTAL_ROLES.DESIGNER]
-  if (normalized.includes('account')) return [PORTAL_ROLES.ACCOUNTS]
-  if (normalized.includes('production')) return [PORTAL_ROLES.PRODUCTION]
-  if (normalized.includes('dispatch')) return [PORTAL_ROLES.DISPATCHER]
-  if (normalized.includes('sales')) return [PORTAL_ROLES.SUPERVISOR]
-  return [PORTAL_ROLES.SUPERVISOR]
 }

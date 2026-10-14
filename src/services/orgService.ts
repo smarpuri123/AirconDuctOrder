@@ -1,7 +1,10 @@
 import orgSeed from '@/data/org-seed.json'
 import { api, isApiMode } from '@/lib/api'
+import { PORTAL_ROLE_LABELS } from '@/lib/stagePortalRoles'
 import { loadFromStorage, saveToStorage } from '@/lib/storage'
+import type { AssignablePortalUser } from '@/types/portalUser'
 import type { Department, Employee, JobRole } from '@/types/org'
+import { userService } from '@/services/userService'
 
 type OrgStore = {
   departments: Department[]
@@ -24,6 +27,20 @@ function persist(store: OrgStore): void {
   saveToStorage(STORAGE_KEY, JSON.stringify(store))
 }
 
+function assignableToEmployee(row: AssignablePortalUser): Employee {
+  return {
+    id: row.employeeId,
+    name: row.name,
+    phone: row.phone,
+    active: true,
+    jobRoles: row.roles.map((code, i) => ({
+      code,
+      label: PORTAL_ROLE_LABELS[code] ?? code,
+      isPrimary: i === 0,
+    })),
+  }
+}
+
 export const orgService = {
   async listDepartments(): Promise<Department[]> {
     if (isApiMode) return api<Department[]>('/org/departments')
@@ -40,8 +57,20 @@ export const orgService = {
     return getStore().employees.filter((e) => e.active)
   },
 
+  /** All portal users from Settings (enquiry responsibility field). */
+  async listResponsibilityAssignees(): Promise<Employee[]> {
+    if (isApiMode) {
+      const rows = await userService.listAssignableUsers()
+      return rows.map(assignableToEmployee)
+    }
+    return getStore().employees.filter((e) => e.active)
+  },
+
   async listEmployeesForStage(stageCode: string): Promise<Employee[]> {
-    if (isApiMode) return api<Employee[]>(`/org/employees/for-stage/${stageCode}`)
+    if (isApiMode) {
+      const rows = await userService.listAssignableUsers(stageCode)
+      return rows.map(assignableToEmployee)
+    }
     const store = getStore()
     const roleCodes = new Set(
       store.stageRoles.filter((s) => s.stageCode === stageCode).map((s) => s.jobRoleCode),

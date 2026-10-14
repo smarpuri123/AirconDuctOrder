@@ -11,10 +11,11 @@ import { StatCard } from '@/components/ui/StatCard'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { SimpleWorkflowStepper } from '@/components/operations/SimpleWorkflowStepper'
-import { StageChip } from '@/components/operations/StageChip'
+import { WorkflowDisplayChip } from '@/components/operations/StageChip'
 import { DispatchStatusChip } from '@/components/ui/Chip'
 import { formatDate } from '@/lib/calculations'
 import { computeWorkQueueSnapshot, productionSubtext } from '@/lib/workQueue'
+import { OPERATIONS_WORKFLOW } from '@/lib/operationsWorkflow'
 
 export function DashboardPage() {
   const navigate = useNavigate()
@@ -22,16 +23,15 @@ export function DashboardPage() {
 
   const stats = useMemo(() => enquiryService.getDashboardStats(), [dataTick])
   const queue = useMemo(() => computeWorkQueueSnapshot().breakdown, [dataTick])
-  const allEnquiries = useMemo(() => enquiryService.getEnquiries(), [dataTick])
+  const allEnquiries = useMemo(() => enquiryService.getEnquiriesForDashboard(), [dataTick])
   const featured = useMemo(
     () =>
       allEnquiries[0] ? enquiryService.getEnquiryWithLiveStage(allEnquiries[0].id) : undefined,
     [allEnquiries, dataTick],
   )
 
-  const inProductionOrders = queue.productionNotApproved + queue.productionInProgress
   const featuredOrder = featured?.orderId ? orderService.getOrderById(featured.orderId) : undefined
-  const recentEnquiries = useMemo(() => enquiryService.getEnquiries().slice(0, 4), [dataTick])
+  const recentEnquiries = useMemo(() => enquiryService.getEnquiriesForDashboard().slice(0, 4), [dataTick])
   const recentDispatches = useMemo(() => dispatchService.getRecentDispatches(3), [dataTick])
 
   const steps = featured ? enquiryService.getWorkflowSteps(featured) : []
@@ -60,40 +60,40 @@ export function DashboardPage() {
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 items-stretch">
         <StatCard
-          label="Enquiries"
+          label={OPERATIONS_WORKFLOW[0].dashboardLabel}
           value={stats.newEnquiries}
           icon={FileText}
           subtext={queue.enquiryNotStarted ? `${queue.enquiryNotStarted} not started` : undefined}
         />
         <StatCard
-          label="Design Review"
+          label={OPERATIONS_WORKFLOW[1].dashboardLabel}
           value={stats.inDesign}
           icon={ClipboardList}
           subtext={queue.designReviewAction ? `${queue.designReviewAction} need action` : undefined}
         />
         <StatCard
-          label="Approval Processing"
+          label={OPERATIONS_WORKFLOW[2].dashboardLabel}
           value={stats.inApprovalProcessing}
           icon={ClipboardCheck}
           subtext={queue.accountsApprovalAction ? `${queue.accountsApprovalAction} awaiting accounts` : undefined}
         />
         <StatCard
-          label="In Production"
-          value={inProductionOrders}
+          label={OPERATIONS_WORKFLOW[3].dashboardLabel}
+          value={stats.inProduction}
           icon={Factory}
           subtext={productionSubtext(queue)}
         />
         <StatCard
-          label="Ready to Dispatch"
-          value={queue.ordersReadyToDispatch}
+          label={OPERATIONS_WORKFLOW[4].dashboardLabel}
+          value={stats.readyToDispatch}
           icon={Package}
           subtext={
-            queue.ordersReadyToDispatch > 0
-              ? `${queue.ordersReadyToDispatch} open orders with dispatch balance`
+            stats.readyToDispatch > 0
+              ? `${stats.readyToDispatch} ready for dispatch trips`
               : undefined
           }
         />
-        <StatCard label="Completed" value={stats.completed} icon={Truck} />
+        <StatCard label={OPERATIONS_WORKFLOW[5].dashboardLabel} value={stats.completed} icon={Truck} />
       </div>
 
       {featured && (
@@ -133,7 +133,7 @@ export function DashboardPage() {
           <Card padding="sm">
             <div className="divide-y divide-border">
               {recentEnquiries.map((e) => {
-                const stage = e.orderId ? enquiryService.syncStageFromOrder(e) : e.stage
+                const live = enquiryService.getEnquiryWithLiveStage(e.id) ?? e
                 return (
                   <button
                     key={e.id}
@@ -144,7 +144,7 @@ export function DashboardPage() {
                       <p className="font-medium text-sm">{e.enquiryNo}</p>
                       <p className="text-xs text-text-secondary">{e.projectName}</p>
                     </div>
-                    <StageChip stage={stage} />
+                    <WorkflowDisplayChip enquiry={live} />
                   </button>
                 )
               })}

@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { isApiMode } from '@/lib/api'
 import { isPushSupported } from '@/lib/pushSubscription'
 import { useNotificationStore } from '@/store/notificationStore'
 import { Button } from '@/components/ui/Button'
@@ -11,14 +10,6 @@ export function NotificationPreferences() {
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [showPushPrompt, setShowPushPrompt] = useState(false)
-
-  if (!isApiMode) {
-    return (
-      <p className="text-sm text-text-secondary">
-        In-app and push notifications are available when the app is connected to the API server.
-      </p>
-    )
-  }
 
   const handleInApp = async (checked: boolean) => {
     setBusy(true)

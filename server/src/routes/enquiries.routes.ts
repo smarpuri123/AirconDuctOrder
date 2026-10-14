@@ -6,6 +6,7 @@ import {
   getEnquiryById,
   createEnquiry,
   startDesignReview,
+  beginDesignWork,
   saveDesignExtraction,
   saveDuctScheduleImport,
   approveDesign,
@@ -24,7 +25,7 @@ import {
 } from '../services/enquiry.service.js'
 import { readEnquiryFile } from '../lib/enquiry-files.js'
 import { activityActorFromRequest } from '../lib/operation-actor.js'
-import { resolveDesignerEnquiryListScope } from '../lib/enquiry-access.js'
+import { resolveEnquiryListScope } from '../lib/enquiry-access.js'
 import { guardEnquiryAssignedToUser } from './enquiry-access-guard.js'
 
 function canManageAccountsWorkflow(roles: string[]): boolean {
@@ -118,7 +119,7 @@ export async function enquiryRoutes(app: FastifyInstance) {
     '/enquiries',
     { preHandler: [app.authenticate, app.authorize(PERMISSIONS.ENQUIRIES_READ)] },
     async (request) => {
-      const scope = await resolveDesignerEnquiryListScope(request.authUser!)
+      const scope = await resolveEnquiryListScope(request.authUser!)
       return listEnquiries(scope)
     },
   )
@@ -229,9 +230,25 @@ export async function enquiryRoutes(app: FastifyInstance) {
         if (!enquiry) return reply.code(404).send({ error: 'Enquiry not found' })
         return enquiry
       } catch (err) {
-        const message = err instanceof Error ? err.message : 'Failed to start design review'
+        const message = err instanceof Error ? err.message : 'Failed to assign design in-charge'
         return reply.code(400).send({ error: message })
       }
+    },
+  )
+
+  app.post(
+    '/enquiries/:id/design/begin-work',
+    { preHandler: [app.authenticate, app.authorize(PERMISSIONS.ENQUIRIES_WRITE)] },
+    async (request, reply) => {
+      const { id } = request.params as { id: string }
+      if (!(await guardEnquiryAssignedToUser(request, reply, id))) return
+      const enquiry = await beginDesignWork(id, activityActorFromRequest(request))
+      if (!enquiry) {
+        return reply.code(400).send({
+          error: 'Enquiry must be assigned and awaiting design start before work can begin',
+        })
+      }
+      return enquiry
     },
   )
 
@@ -271,7 +288,10 @@ export async function enquiryRoutes(app: FastifyInstance) {
       if (!(await guardEnquiryAssignedToUser(request, reply, id))) return
       const enquiry = await submitDesignToAccounts(id, activityActorFromRequest(request))
       if (!enquiry) {
-        return reply.code(400).send({ error: 'Save duct extraction before submitting to accounts' })
+        return reply.code(400).send({
+          error:
+            'Import duct schedule from Excel and save extraction before submitting to accounts',
+        })
       }
       return enquiry
     },

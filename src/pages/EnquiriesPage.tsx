@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus } from 'lucide-react'
 import { enquiryService } from '@/services/enquiryService'
-import { StageChip } from '@/components/operations/StageChip'
+import { WorkflowDisplayChip } from '@/components/operations/StageChip'
+import { OPERATIONS_WORKFLOW, resolveWorkflowDisplayStage } from '@/lib/operationsWorkflow'
 import { PageToolbar } from '@/components/layout/PageToolbar'
 import { KanbanBoard } from '@/components/views/KanbanBoard'
 import { Card } from '@/components/ui/Card'
@@ -12,28 +13,19 @@ import { SearchInput } from '@/components/ui/SearchInput'
 import { useViewStore } from '@/store/viewStore'
 import { useApiData } from '@/hooks/useApiData'
 import { formatDate } from '@/lib/calculations'
-import type { Enquiry, EnquiryStage } from '@/types/enquiry'
+import type { Enquiry, WorkflowDisplayStage } from '@/types/enquiry'
 import { usePortalRoles } from '@/hooks/usePortalRoles'
-import { canCreateEnquiry, isDesignerOnlyUser } from '@/lib/portalAccess'
+import { canCreateEnquiry, isAccountsOnlyUser, isDesignerOnlyUser } from '@/lib/portalAccess'
 
-const filters: { key: EnquiryStage | 'all' | 'approval_processing'; label: string }[] = [
+const filters: { key: WorkflowDisplayStage | 'all'; label: string }[] = [
   { key: 'all', label: 'All' },
-  { key: 'enquiry', label: 'Enquiry' },
-  { key: 'design_review', label: 'Design Review' },
-  { key: 'approval_processing', label: 'Approval Processing' },
-  { key: 'order', label: 'Order' },
-  { key: 'manufacturing', label: 'Manufacturing' },
-  { key: 'dispatch', label: 'Dispatch' },
+  ...OPERATIONS_WORKFLOW.map((s) => ({ key: s.stage, label: s.stepperLabel })),
 ]
 
-const kanbanColumns: { id: EnquiryStage; title: string }[] = [
-  { id: 'enquiry', title: 'Enquiry' },
-  { id: 'design_review', title: 'Design Review' },
-  { id: 'order', title: 'Order' },
-  { id: 'manufacturing', title: 'Manufacturing' },
-  { id: 'dispatch', title: 'Dispatch' },
-  { id: 'completed', title: 'Completed' },
-]
+const kanbanColumns = OPERATIONS_WORKFLOW.map((s) => ({
+  id: s.stage,
+  title: s.stepperLabel,
+}))
 
 function enrichEnquiry(e: Enquiry): Enquiry {
   return enquiryService.withEffectiveStage(e)
@@ -44,13 +36,14 @@ export function EnquiriesPage() {
   const roles = usePortalRoles()
   const showNewEnquiry = canCreateEnquiry(roles)
   const designerInbox = isDesignerOnlyUser(roles)
-  const stageFilters = designerInbox
-    ? filters.filter((f) =>
-        ['all', 'enquiry', 'design_review', 'approval_processing'].includes(f.key),
-      )
-    : filters
+  const accountsInbox = isAccountsOnlyUser(roles)
+  const stageFilters = accountsInbox
+    ? filters.filter((f) => ['all', 'approval_processing'].includes(f.key))
+    : designerInbox
+      ? filters.filter((f) => ['all', 'enquiry', 'design_review'].includes(f.key))
+      : filters
   const [search, setSearch] = useState('')
-  const [filter, setFilter] = useState<EnquiryStage | 'all' | 'approval_processing'>('all')
+  const [filter, setFilter] = useState<WorkflowDisplayStage | 'all'>('all')
   const view = useViewStore((s) => s.preferences.enquiries)
   const dataTick = useApiData()
 
@@ -84,14 +77,26 @@ export function EnquiriesPage() {
 
       {designerInbox && (
         <p className="text-sm text-text-secondary">
-          Showing enquiries assigned to you as design in-charge.
+          Showing enquiries assigned to you as design in-charge (design review only).
+        </p>
+      )}
+
+      {accountsInbox && (
+        <p className="text-sm text-text-secondary">
+          Showing enquiries in approval processing — submitted to accounts through PO approval.
         </p>
       )}
 
       <SearchInput
         value={search}
         onChange={setSearch}
-        placeholder={designerInbox ? 'Search your assigned enquiries...' : 'Search enquiries...'}
+        placeholder={
+          designerInbox
+            ? 'Search your assigned enquiries...'
+            : accountsInbox
+              ? 'Search approval queue...'
+              : 'Search enquiries...'
+        }
       />
 
       {view !== 'kanban' && (
@@ -108,7 +113,9 @@ export function EnquiriesPage() {
         <p className="text-center text-text-secondary py-12">
           {designerInbox
             ? 'No enquiries are assigned to you yet. Your supervisor will assign design in-charge when review starts.'
-            : 'No enquiries match your filter.'}
+            : accountsInbox
+              ? 'No enquiries are waiting in approval processing right now.'
+              : 'No enquiries match your filter.'}
         </p>
       )}
 
@@ -118,7 +125,7 @@ export function EnquiriesPage() {
             <Card key={enq.id} hover onClick={() => open(enq.id)}>
               <div className="flex justify-between items-start mb-3">
                 <p className="font-semibold">{enq.enquiryNo}</p>
-                <StageChip stage={enq.stage} />
+                <WorkflowDisplayChip enquiry={enq} />
               </div>
               <p className="text-sm font-medium">{enq.projectName}</p>
               <p className="text-sm text-text-secondary">{enq.customerName}</p>
@@ -156,7 +163,7 @@ export function EnquiriesPage() {
                     <td className="py-3 px-3">{enq.customerName}</td>
                     <td className="py-3 px-3">{formatDate(enq.enquiryDate)}</td>
                     <td className="py-3 px-3">{enq.personInChargeName ?? enq.salesPerson ?? '—'}</td>
-                    <td className="py-3 px-3"><StageChip stage={enq.stage} /></td>
+                    <td className="py-3 px-3"><WorkflowDisplayChip enquiry={enq} /></td>
                   </tr>
                 ))}
               </tbody>
@@ -169,7 +176,7 @@ export function EnquiriesPage() {
         <KanbanBoard
           columns={kanbanColumns.map((col) => ({
             ...col,
-            items: enquiries.filter((e) => e.stage === col.id),
+            items: enquiries.filter((e) => resolveWorkflowDisplayStage(e) === col.id),
           }))}
           getKey={(e) => e.id}
           onCardClick={(e) => open(e.id)}

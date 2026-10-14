@@ -1,42 +1,111 @@
-import type { DesignReviewStatus } from '@/types/enquiry'
+import type { DesignReviewStatus, Enquiry } from '@/types/enquiry'
+import { APPROVAL_PROCESSING_STATUSES } from '@/lib/enquiryWorkflow'
 
-const STEPS: { status: DesignReviewStatus; label: string }[] = [
-  { status: 'in_review', label: 'Design extraction' },
+const PO_STEPS: { status: DesignReviewStatus; label: string }[] = [
+  { status: 'in_review', label: 'Working on design' },
   { status: 'submitted_to_accounts', label: 'With accounts' },
   { status: 'po_for_review', label: 'PO for review' },
   { status: 'po_for_approval', label: 'PO for approval' },
   { status: 'approved', label: 'Approved' },
 ]
 
-function stepIndex(status: DesignReviewStatus): number {
+function poStepIndex(status: DesignReviewStatus): number {
   if (status === 'pending' || status === 'revision_needed') return 0
-  const idx = STEPS.findIndex((s) => s.status === status)
+  const idx = PO_STEPS.findIndex((s) => s.status === status)
   return idx >= 0 ? idx : 0
 }
 
 export function designStatusLabel(status: DesignReviewStatus): string {
-  const found = STEPS.find((s) => s.status === status)
-  if (found) return found.label
   const map: Record<string, string> = {
-    pending: 'Pending',
+    pending: 'Awaiting design start',
+    in_review: 'Working on design',
     revision_needed: 'Revision needed',
+    submitted_to_accounts: 'With accounts',
+    po_for_review: 'PO for review',
+    po_for_approval: 'PO for approval',
+    approved: 'Approved',
   }
   return map[status] ?? status
+}
+
+function hasDuctSchedule(enquiry: Enquiry): boolean {
+  return (enquiry.ductLines?.length ?? 0) > 0
+}
+
+/** Steps before accounts: start work → import Excel → submit. */
+export function DesignDesignerProgress({ enquiry }: { enquiry: Enquiry }) {
+  const status = enquiry.designReview.status
+  if (APPROVAL_PROCESSING_STATUSES.includes(status) || status === 'approved') return null
+
+  const started = status !== 'pending'
+  const imported = hasDuctSchedule(enquiry)
+  const steps = [
+    { key: 'start', label: 'Start design work', done: started },
+    { key: 'import', label: 'Import schedule (Excel)', done: imported },
+    {
+      key: 'submit',
+      label: 'Submit to accounts',
+      done: false,
+      current: started && imported && status === 'in_review',
+    },
+  ]
+
+  let activeIndex = 0
+  if (!started) activeIndex = 0
+  else if (!imported) activeIndex = 1
+  else if (status === 'in_review') activeIndex = 2
+  else activeIndex = 1
+
+  return (
+    <div className="mb-5">
+      {status === 'revision_needed' && (
+        <p className="text-sm text-warning font-medium mb-2">
+          Revision in progress — start work, re-import schedule, then submit again
+        </p>
+      )}
+      <ol className="flex flex-wrap gap-1 sm:gap-0 sm:flex-nowrap items-center text-xs sm:text-sm">
+        {steps.map((step, i) => {
+          const done = step.done
+          const current = i === activeIndex && !done
+          return (
+            <li key={step.key} className="flex items-center min-w-0">
+              <span
+                className={`px-2 py-1 rounded-md truncate max-w-[8.5rem] sm:max-w-none ${
+                  current
+                    ? 'bg-primary text-white font-medium'
+                    : done
+                      ? 'bg-primary/15 text-primary font-medium'
+                      : 'bg-background text-text-secondary border border-border'
+                }`}
+              >
+                {step.label}
+              </span>
+              {i < steps.length - 1 && (
+                <span className="hidden sm:inline text-text-secondary mx-1" aria-hidden>→</span>
+              )}
+            </li>
+          )
+        })}
+      </ol>
+    </div>
+  )
 }
 
 export function DesignPoStatusBar({ status }: { status: DesignReviewStatus }) {
   if (status === 'pending') return null
 
-  const active = stepIndex(status)
+  const active = poStepIndex(status)
   const isRevision = status === 'revision_needed'
 
   return (
     <div className="mb-5">
       {isRevision && (
-        <p className="text-sm text-warning font-medium mb-2">Revision in progress — update extraction then resubmit</p>
+        <p className="text-sm text-warning font-medium mb-2">
+          Revision in progress — update extraction then resubmit
+        </p>
       )}
       <ol className="flex flex-wrap gap-1 sm:gap-0 sm:flex-nowrap items-center text-xs sm:text-sm">
-        {STEPS.map((step, i) => {
+        {PO_STEPS.map((step, i) => {
           const done = !isRevision && i < active
           const current = !isRevision && i === active
           return (
@@ -52,7 +121,7 @@ export function DesignPoStatusBar({ status }: { status: DesignReviewStatus }) {
               >
                 {step.label}
               </span>
-              {i < STEPS.length - 1 && (
+              {i < PO_STEPS.length - 1 && (
                 <span className="hidden sm:inline text-text-secondary mx-1" aria-hidden>→</span>
               )}
             </li>

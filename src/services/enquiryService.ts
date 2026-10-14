@@ -1,7 +1,12 @@
 import enquiriesSeed from '@/data/enquiries.json'
 import { api, isApiMode } from '@/lib/api'
 import { createActivityEntry, normalizeActivityEntry, type CreateActivityInput } from '@/lib/activity'
-import { getCachedEnquiries, notifyLocalDataChanged, refreshAll } from '@/lib/dataCache'
+import {
+  getCachedEnquiries,
+  mergeEnquiryIntoCache,
+  notifyLocalDataChanged,
+  refreshAll,
+} from '@/lib/dataCache'
 import { getCurrentUser } from '@/lib/currentUser'
 import { loadFromStorage, saveToStorage } from '@/lib/storage'
 import { getTodayISO } from '@/lib/calculations'
@@ -32,10 +37,16 @@ import type {
   EnquiryDesignDocument,
   EnquiryFilePayload,
   EnquiryStage,
+  WorkflowDisplayStage,
   WorkflowStep,
 } from '@/types/enquiry'
-import { WORKFLOW_STEPS as STEPS } from '@/types/enquiry'
-import { filterEnquiriesForDesignerView } from '@/lib/enquiryAssigneeFilter'
+import {
+  buildOperationsWorkflowSteps,
+  computeOperationsPipelineCounts,
+  resolveWorkflowDisplayStage,
+} from '@/lib/operationsWorkflow'
+import { filterEnquiriesForPortalView } from '@/lib/enquiryAssigneeFilter'
+import { useAuthStore } from '@/store/authStore'
 
 async function apiEnquiry<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
   const result = await api<T>(path, {
@@ -136,10 +147,18 @@ const STAGE_ORDER: EnquiryStage[] = ['enquiry', 'design_review', 'order', 'manuf
 
 export const enquiryService = {
   getEnquiries(): Enquiry[] {
+    const user = useAuthStore.getState().user
     const sorted = getEnquiriesData().sort(
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
     )
-    return filterEnquiriesForDesignerView(sorted)
+    return filterEnquiriesForPortalView(sorted, user?.roles ?? [], user?.employeeId)
+  },
+
+  /** Operations dashboard: full list (not designer demo inbox filter). */
+  getEnquiriesForDashboard(): Enquiry[] {
+    return getEnquiriesData().sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    )
   },
 
   getEnquiryById(id: string): Enquiry | undefined {
@@ -167,7 +186,14 @@ export const enquiryService = {
 
   async createEnquiry(input: CreateEnquiryInput): Promise<Enquiry> {
     if (isApiMode) {
-      return apiEnquiry<Enquiry>('/enquiries', 'POST', input)
+      const result = await api<Enquiry>('/enquiries', {
+        method: 'POST',
+        body: JSON.stringify(input),
+      })
+      const enquiry = normalizeEnquiry(result)
+      mergeEnquiryIntoCache(enquiry)
+      await refreshAll()
+      return enquiry
     }
     const enquiries = getEnquiriesData()
     const user = getCurrentUser()
@@ -287,25 +313,19 @@ export const enquiryService = {
   },
 
   getWorkflowSteps(enquiry: Enquiry): WorkflowStep[] {
-    const currentIdx = STAGE_ORDER.indexOf(enquiry.stage)
-    return STEPS.map((s) => {
-      const stepIdx = STAGE_ORDER.indexOf(s.stage)
-      let status: WorkflowStep['status'] = 'upcoming'
-      if (stepIdx < currentIdx) status = 'completed'
-      else if (stepIdx === currentIdx) status = 'current'
-      return { ...s, status }
-    })
+    return buildOperationsWorkflowSteps(enquiry)
   },
 
-  filterByStage(stage: EnquiryStage | 'all' | 'approval_processing'): Enquiry[] {
-    if (stage === 'all') return this.getEnquiries()
+  filterByStage(stage: WorkflowDisplayStage | 'all'): Enquiry[] {
+    const list = this.getEnquiries().map((e) => this.withEffectiveStage(e))
+    if (stage === 'all') return list
     if (stage === 'approval_processing') {
-      return this.getEnquiries().filter((e) => isApprovalProcessing(e))
+      return list.filter((e) => isApprovalProcessing(e))
     }
     if (stage === 'design_review') {
-      return this.getEnquiries().filter((e) => isDesignReviewWork(e))
+      return list.filter((e) => isDesignReviewWork(e))
     }
-    return this.getEnquiries().filter((e) => e.stage === stage)
+    return list.filter((e) => resolveWorkflowDisplayStage(e) === stage)
   },
 
   async startDesignReview(
@@ -325,16 +345,36 @@ export const enquiryService = {
 
     const fromName = enquiry.currentAssigneeName ?? enquiry.personInChargeName ?? enquiry.salesPerson
     enquiry.stage = 'design_review'
-    enquiry.designReview = { ...enquiry.designReview, status: 'in_review' }
+    enquiry.designReview = { ...enquiry.designReview, status: 'pending' }
     enquiry.currentAssigneeId = assignee.id
     enquiry.currentAssigneeName = assignee.name
     enquiry.currentAssigneeRoleCode = handoff.assigneeRoleCode ?? assignee.jobRoles[0]?.code ?? null
 
     addActivityAsCurrentUser(enquiry, {
       phase: 'design',
-      title: `Design review started — ${formatRevision(enquiry.designReview.revision)}`,
+      title: `Assigned to design in-charge — ${formatRevision(enquiry.designReview.revision)}`,
       detail: `Handoff: ${fromName ?? '—'} → ${assignee.name}${handoff.assigneeRoleCode ? ` (${handoff.assigneeRoleCode})` : ''}`,
       metadata: { assigneeId: assignee.id, assigneeRoleCode: handoff.assigneeRoleCode },
+    })
+    enquiries[idx] = enquiry
+    persist(enquiries)
+    return enquiry
+  },
+
+  async beginDesignWork(id: string): Promise<Enquiry | undefined> {
+    if (isApiMode) {
+      return apiEnquiry<Enquiry>(`/enquiries/${id}/design/begin-work`, 'POST')
+    }
+    const enquiries = getEnquiriesData()
+    const idx = enquiries.findIndex((e) => e.id === id)
+    if (idx === -1) return undefined
+    const enquiry = enquiries[idx]
+    if (enquiry.designReview.status !== 'pending' || !enquiry.currentAssigneeId) return undefined
+    enquiry.designReview = { ...enquiry.designReview, status: 'in_review' }
+    addActivityAsCurrentUser(enquiry, {
+      phase: 'design',
+      title: `Started working on the design — ${formatRevision(enquiry.designReview.revision)}`,
+      revision: enquiry.designReview.revision,
     })
     enquiries[idx] = enquiry
     persist(enquiries)
@@ -459,6 +499,7 @@ export const enquiryService = {
     const enquiry = enquiries[idx]
     if (enquiry.designReview.status !== 'in_review') return undefined
     if (!enquiry.designReview.ductTags || !enquiry.designReview.totalQty) return undefined
+    if (!(enquiry.ductLines?.length ?? 0)) return undefined
     const revision = enquiry.designReview.revision
     enquiry.designReview = { ...enquiry.designReview, status: 'submitted_to_accounts' }
     const ductDoc = enquiry.ductScheduleDocuments?.[0]
@@ -752,15 +793,16 @@ export const enquiryService = {
   },
 
   getDashboardStats() {
-    const enquiries = this.getEnquiries().map((e) => this.withEffectiveStage(e))
+    const enquiries = this.getEnquiriesForDashboard().map((e) => this.withEffectiveStage(e))
+    const pipeline = computeOperationsPipelineCounts(enquiries)
     return {
       total: enquiries.length,
-      newEnquiries: enquiries.filter((e) => needsEnquiryIntake(e)).length,
-      inDesign: enquiries.filter((e) => isDesignReviewWork(e)).length,
-      inApprovalProcessing: enquiries.filter((e) => isApprovalProcessing(e)).length,
-      inProduction: enquiries.filter((e) => e.stage === 'manufacturing').length,
-      readyToDispatch: enquiries.filter((e) => e.stage === 'dispatch').length,
-      completed: enquiries.filter((e) => e.stage === 'completed').length,
+      newEnquiries: pipeline.enquiry,
+      inDesign: pipeline.design_review,
+      inApprovalProcessing: pipeline.approval_processing,
+      inProduction: pipeline.manufacturing,
+      readyToDispatch: pipeline.dispatch,
+      completed: pipeline.completed,
     }
   },
 

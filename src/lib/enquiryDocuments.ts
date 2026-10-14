@@ -1,6 +1,5 @@
 import type { EnquiryDesignDocument, EnquiryFilePayload } from '@/types/enquiry'
 import { getToken } from '@/lib/api'
-import { getCurrentUser } from '@/lib/currentUser'
 import { loadFromStorage, saveToStorage } from '@/lib/storage'
 
 const API_BASE = import.meta.env.VITE_API_URL ?? '/api'
@@ -80,7 +79,6 @@ export async function uploadEnquiryDocumentsWithProgress(
   onProgress: (percent: number) => void,
 ): Promise<void> {
   const token = getToken()
-  const acting = getCurrentUser()
 
   await new Promise<void>((resolve, reject) => {
     const xhr = new XMLHttpRequest()
@@ -88,8 +86,6 @@ export async function uploadEnquiryDocumentsWithProgress(
     xhr.open('POST', `${API_BASE}/enquiries/${enquiryId}/documents`)
     xhr.setRequestHeader('Content-Type', 'application/json')
     if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`)
-    xhr.setRequestHeader('X-Operation-Actor-Name', acting.name)
-    xhr.setRequestHeader('X-Operation-Actor-Role', acting.role)
 
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable && event.total > 0) {
@@ -144,33 +140,18 @@ function guessMime(fileName: string): string {
   return map[ext ?? ''] ?? 'application/octet-stream'
 }
 
-export async function downloadEnquiryDocument(
-  doc: EnquiryDesignDocument,
-  apiMode: boolean,
-): Promise<void> {
-  if (apiMode) {
-    const token = getToken()
-    const res = await fetch(
-      `${API_BASE}/enquiries/${doc.enquiryId}/documents/${doc.id}/download`,
-      { headers: token ? { Authorization: `Bearer ${token}` } : {} },
-    )
-    if (!res.ok) return
-    const blob = await res.blob()
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = doc.fileName
-    a.click()
-    URL.revokeObjectURL(url)
-    return
-  }
-  const blob = getLocalEnquiryFileBlob(doc.id)
-  if (!blob) return
-  const bytes = Uint8Array.from(atob(blob.dataBase64), (c) => c.charCodeAt(0))
-  const url = URL.createObjectURL(new Blob([bytes], { type: blob.mimeType }))
+export async function downloadEnquiryDocument(doc: EnquiryDesignDocument): Promise<void> {
+  const token = getToken()
+  const res = await fetch(
+    `${API_BASE}/enquiries/${doc.enquiryId}/documents/${doc.id}/download`,
+    { headers: token ? { Authorization: `Bearer ${token}` } : {} },
+  )
+  if (!res.ok) return
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = blob.fileName
+  a.download = doc.fileName
   a.click()
   URL.revokeObjectURL(url)
 }

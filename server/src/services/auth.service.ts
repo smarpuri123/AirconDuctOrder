@@ -25,6 +25,7 @@ async function findUserForLogin(loginId: string) {
 }
 
 const userWithRolesInclude = {
+  employee: { select: { id: true } },
   roles: {
     include: {
       role: {
@@ -54,17 +55,7 @@ export async function authenticateUser(username: string, password: string): Prom
 export async function getUserById(id: string): Promise<AuthUser | null> {
   const user = await prisma.user.findUnique({
     where: { id },
-    include: {
-      roles: {
-        include: {
-          role: {
-            include: {
-              permissions: { include: { permission: true } },
-            },
-          },
-        },
-      },
-    },
+    include: userWithRolesInclude,
   })
   if (!user || !user.active) return null
   return toAuthUser(user)
@@ -75,6 +66,7 @@ function toAuthUser(user: {
   username: string
   email: string
   name: string
+  employee?: { id: string } | null
   roles: Array<{
     role: {
       code: string
@@ -96,6 +88,7 @@ function toAuthUser(user: {
     name: user.name,
     roles,
     permissions,
+    employeeId: user.employee?.id ?? null,
   }
 }
 

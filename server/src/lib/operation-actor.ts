@@ -1,4 +1,5 @@
 import type { FastifyRequest } from 'fastify'
+import { portalRoleLabels } from './portal-role-labels.js'
 
 export interface ActivityActor {
   name: string
@@ -29,6 +30,6 @@ export function attachOperationActor(request: FastifyRequest): void {
 export function activityActorFromRequest(request: FastifyRequest): ActivityActor {
   if (request.activityActor) return request.activityActor
   const user = request.authUser!
-  const role = user.roles.length > 0 ? user.roles.join(', ') : 'User'
+  const role = portalRoleLabels(user.roles)
   return { name: user.name, role }
 }

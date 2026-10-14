@@ -15,13 +15,17 @@ export function isApprovalProcessing(enquiry: Enquiry): boolean {
   )
 }
 
+/** Engineering queue: design has started, or intake is done and design has not started yet. */
 export function isDesignReviewWork(enquiry: Enquiry): boolean {
   if (enquiry.orderId) return false
   if (enquiry.stage !== 'design_review') return false
-  if (enquiry.designReview.status === 'pending') return false
   if (isApprovalProcessing(enquiry)) return false
   if (enquiry.designReview.status === 'approved') return false
   return true
+}
+
+export function hasDuctScheduleImported(enquiry: Enquiry): boolean {
+  return (enquiry.ductLines?.length ?? 0) > 0
 }
 
 export function enquiryHasClientInput(enquiry: Enquiry): boolean {
@@ -99,7 +103,24 @@ export function previousDesignStatusUi(status: DesignReviewStatus): DesignReview
 
 export function canRevertDesignStepUi(enquiry: Enquiry, order?: OrderWorkflowSnapshot): boolean {
   if (isOrderWorkflowLocked(order)) return false
-  return previousDesignStatusUi(enquiry.designReview.status) !== null
+  const prev = previousDesignStatusUi(enquiry.designReview.status)
+  if (!prev) return false
+  // Back to design review is only via “Return to design” (revision), not PO step-back.
+  if (prev === 'in_review') return false
+  return true
+}
+
+const REVERT_STEP_LABELS: Partial<Record<DesignReviewStatus, string>> = {
+  submitted_to_accounts: 'submitted to accounts',
+  po_for_review: 'PO for review',
+  po_for_approval: 'PO for approval',
+}
+
+export function designRevertStepLabel(status: DesignReviewStatus): string {
+  const prev = previousDesignStatusUi(status)
+  if (!prev) return 'Step back (previous stage)'
+  const target = REVERT_STEP_LABELS[prev]
+  return target ? `Step back to ${target}` : 'Step back (previous stage)'
 }
 
 export function canReturnToDesignUi(enquiry: Enquiry, order?: OrderWorkflowSnapshot): boolean {

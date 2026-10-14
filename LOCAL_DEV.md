@@ -13,9 +13,7 @@ project root  → React portal     http://localhost:5173
 server/       → Fastify API      http://localhost:3001
 ```
 
-Demo mode (no backend): leave `VITE_USE_API=false` in `.env`.
-
-API mode: set `VITE_USE_API=true` after database setup below.
+The portal requires the API. Set `VITE_USE_API=true` in `.env` (default in `.env.example`) after database setup below.
 
 ---
 

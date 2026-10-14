@@ -1,9 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ChevronDown, LogOut, User } from 'lucide-react'
-import { isApiMode } from '@/lib/api'
 import { useAuthStore } from '@/store/authStore'
-import { ActorSelector } from '@/components/operations/ActorSelector'
 
 export function UserMenu() {
   const navigate = useNavigate()
@@ -20,10 +18,6 @@ export function UserMenu() {
     document.addEventListener('mousedown', onDoc)
     return () => document.removeEventListener('mousedown', onDoc)
   }, [open])
-
-  if (!isApiMode) {
-    return <ActorSelector />
-  }
 
   if (!user) return null
 

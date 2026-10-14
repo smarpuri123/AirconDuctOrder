@@ -1,4 +1,4 @@
-import { api, isApiMode } from '@/lib/api'
+import { api } from '@/lib/api'
 
 import type { Enquiry } from '@/types/enquiry'
 
@@ -94,6 +94,16 @@ export function setCachedEnquiries(enquiries: Enquiry[]): void {
 
 }
 
+/** Keep a freshly created/updated enquiry visible until the next list fetch completes. */
+export function mergeEnquiryIntoCache(enquiry: Enquiry): void {
+  const list = enquiriesCache ? [...enquiriesCache] : []
+  const idx = list.findIndex((e) => e.id === enquiry.id)
+  if (idx >= 0) list[idx] = enquiry
+  else list.unshift(enquiry)
+  enquiriesCache = list
+  bumpCacheRevision()
+}
+
 
 
 async function fetchOptional<T>(path: string): Promise<T | null> {
@@ -105,8 +115,6 @@ async function fetchOptional<T>(path: string): Promise<T | null> {
 }
 
 export async function hydrateFromApi(): Promise<void> {
-  if (!isApiMode) return
-
   // Role-scoped: designer/accounts may lack orders or dispatches — skip 403s, load what is allowed.
   const [orders, dispatches, enquiries] = await Promise.all([
     fetchOptional<Order[]>('/orders'),
@@ -124,8 +132,6 @@ export async function hydrateFromApi(): Promise<void> {
 
 export async function refreshOrders(): Promise<Order[]> {
 
-  if (!isApiMode) return []
-
   const orders = (await fetchOptional<Order[]>('/orders')) ?? []
 
   ordersCache = orders
@@ -137,8 +143,6 @@ export async function refreshOrders(): Promise<Order[]> {
 
 
 export async function refreshDispatches(): Promise<Dispatch[]> {
-
-  if (!isApiMode) return []
 
   const dispatches = (await fetchOptional<Dispatch[]>('/dispatches')) ?? []
 
@@ -152,8 +156,6 @@ export async function refreshDispatches(): Promise<Dispatch[]> {
 
 export async function refreshEnquiries(): Promise<Enquiry[]> {
 
-  if (!isApiMode) return []
-
   const enquiries = (await fetchOptional<Enquiry[]>('/enquiries')) ?? []
 
   enquiriesCache = enquiries
@@ -165,9 +167,6 @@ export async function refreshEnquiries(): Promise<Enquiry[]> {
 
 
 export async function refreshAll(): Promise<void> {
-
-  if (!isApiMode) return
-
   await hydrateFromApi()
 
 }

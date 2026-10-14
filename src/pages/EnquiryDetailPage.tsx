@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 
 import { enquiryService } from '@/services/enquiryService'
+import { jobRoleCodeLabel } from '@/lib/jobRoleLabel'
 
 import { orderService } from '@/services/orderService'
 
@@ -16,7 +17,7 @@ import { WorkflowProgressSummary } from '@/components/operations/WorkflowProgres
 
 import { SimpleWorkflowStepper } from '@/components/operations/SimpleWorkflowStepper'
 
-import { StageChip } from '@/components/operations/StageChip'
+import { WorkflowDisplayChip } from '@/components/operations/StageChip'
 
 import { Card } from '@/components/ui/Card'
 
@@ -28,9 +29,6 @@ import { Textarea } from '@/components/ui/Textarea'
 
 import { ProgressBar } from '@/components/ui/ProgressBar'
 import { ProductionProcessPanel } from '@/components/operations/ProductionProcessPanel'
-import { downloadEnquiryDocument } from '@/lib/enquiryDocuments'
-import { isApiMode } from '@/lib/api'
-import { Download } from 'lucide-react'
 import type { ProductionProcess } from '@/types/production'
 
 import { usePortalRoles } from '@/hooks/usePortalRoles'
@@ -44,18 +42,25 @@ import {
   canSeeWorkflowAuditLog,
   canUploadClientInputFiles,
 } from '@/lib/portalAccess'
-import { DesignPoStatusBar, designStatusLabel } from '@/components/operations/DesignPoStatusBar'
+import {
+  DesignDesignerProgress,
+  DesignPoStatusBar,
+  designStatusLabel,
+} from '@/components/operations/DesignPoStatusBar'
 import { orgService } from '@/services/orgService'
 import type { Employee } from '@/types/org'
 import { Select } from '@/components/ui/Select'
 import { EnquiryDesignFiles } from '@/components/operations/EnquiryDesignFiles'
+import { DuctSchedulePanel } from '@/components/operations/DuctSchedulePanel'
 import { formatDate, getOrderBalanceQty, getOrderDispatchedQty } from '@/lib/calculations'
 import {
   APPROVAL_PROCESSING_STATUSES,
   canEditDesignExtractionUi,
+  hasDuctScheduleImported,
   canRequestDesignRevisionUi,
   canReturnToDesignUi,
   canRevertDesignStepUi,
+  designRevertStepLabel,
   needsEnquiryIntake,
 } from '@/lib/enquiryWorkflow'
 import { canRevertOrderStepUi, orderRevertStepLabel } from '@/lib/orderWorkflow'
@@ -97,7 +102,6 @@ export function EnquiryDetailPage() {
 
 
   useEffect(() => {
-    if (!isApiMode) return
     enquiryService.refresh().then(() => reload())
   }, [id])
 
@@ -190,8 +194,17 @@ export function EnquiryDetailPage() {
     'approved',
   ].includes(design.status)
 
+  const canBeginDesignWork =
+    design.status === 'pending' &&
+    Boolean(enquiry.currentAssigneeId) &&
+    !enquiry.orderId &&
+    canManageDesignWorkflow(roles)
+
   const canSubmitToAccounts =
-    design.status === 'in_review' && !enquiry.orderId && canManageDesignWorkflow(roles)
+    design.status === 'in_review' &&
+    hasDuctScheduleImported(enquiry) &&
+    !enquiry.orderId &&
+    canManageDesignWorkflow(roles)
   const canMarkPoReview = design.status === 'submitted_to_accounts' && canManageAccountsWorkflow
   const canMarkPoApproval = design.status === 'po_for_review' && canManageAccountsWorkflow
   const canApprovePo = design.status === 'po_for_approval' && canManageAccountsWorkflow
@@ -213,6 +226,20 @@ export function EnquiryDetailPage() {
   const productionApproved = order?.productionApproved ?? false
 
 
+
+  const handleBeginDesignWork = async () => {
+    setFormError('')
+    try {
+      const result = await enquiryService.beginDesignWork(enquiry.id)
+      if (!result) {
+        setFormError('Assign a design in-charge before starting work.')
+        return
+      }
+      reload()
+    } catch (err) {
+      setFormError(actionError(err, 'Failed to start design work'))
+    }
+  }
 
   const handleAcceptAndAssignDesign = async () => {
     setFormError('')
@@ -290,7 +317,7 @@ export function EnquiryDetailPage() {
     try {
       const result = await enquiryService.submitDesignToAccounts(enquiry.id)
       if (!result) {
-        setFormError('Save duct extraction before submitting to accounts.')
+        setFormError('Import duct schedule from Excel before submitting to accounts.')
         return
       }
       reload()
@@ -473,7 +500,7 @@ export function EnquiryDetailPage() {
 
         subtitle={`${enquiry.projectName} · ${enquiry.customerName}`}
 
-        badge={<StageChip stage={enquiry.stage} />}
+        badge={<WorkflowDisplayChip enquiry={enquiry} />}
 
         actions={
 
@@ -491,17 +518,14 @@ export function EnquiryDetailPage() {
 
       />
 
+      <Card className="py-5 px-4 sm:px-6">
+        <SimpleWorkflowStepper steps={steps} />
+      </Card>
 
-
-      {showWorkflowAudit && (
+      {showWorkflowAudit && enquiry.activity.length > 0 && (
         <Card>
           <h3 className="font-semibold mb-4">Workflow Progress</h3>
-          <SimpleWorkflowStepper steps={steps} />
-          {enquiry.activity.length > 0 && (
-            <div className="mt-6 pt-6 border-t border-border">
-              <WorkflowProgressSummary entries={enquiry.activity} />
-            </div>
-          )}
+          <WorkflowProgressSummary entries={enquiry.activity} />
         </Card>
       )}
 
@@ -532,13 +556,17 @@ export function EnquiryDetailPage() {
             { label: 'Expected Completion', value: enquiry.expectedCompletion ? formatDate(enquiry.expectedCompletion) : '—' },
 
             {
-              label: 'Person in charge',
+              label: 'Responsibility (person in charge)',
               value: enquiry.personInChargeName ?? enquiry.salesPerson ?? '—',
             },
             {
               label: 'Current assignee',
               value: enquiry.currentAssigneeName
-                ? `${enquiry.currentAssigneeName}${enquiry.currentAssigneeRoleCode ? ` (${enquiry.currentAssigneeRoleCode})` : ''}`
+                ? `${enquiry.currentAssigneeName}${
+                    enquiry.currentAssigneeRoleCode
+                      ? ` (${jobRoleCodeLabel(enquiry.currentAssigneeRoleCode, designAssignees)})`
+                      : ''
+                  }`
                 : '—',
             },
 
@@ -572,6 +600,22 @@ export function EnquiryDetailPage() {
         />
       </Card>
 
+      {((enquiry.ductLines?.length ?? 0) > 0 ||
+        (enquiry.ductScheduleDocuments?.length ?? 0) > 0) && (
+        <Card>
+          <h3 className="font-semibold mb-2">Imported duct schedule</h3>
+          <p className="text-sm text-text-secondary mb-4">
+            Tags and dimensions from the designer&apos;s Excel import. The file can be downloaded by anyone
+            with access to this enquiry.
+          </p>
+          <DuctSchedulePanel
+            enquiryId={enquiry.id}
+            ductLines={enquiry.ductLines ?? []}
+            ductScheduleDocuments={enquiry.ductScheduleDocuments ?? []}
+          />
+        </Card>
+      )}
+
       <Card>
 
         <div className="flex items-center justify-between mb-4">
@@ -600,13 +644,16 @@ export function EnquiryDetailPage() {
 
         </div>
 
-        {showExtractionPanel && <DesignPoStatusBar status={design.status} />}
+        <DesignDesignerProgress enquiry={enquiry} />
+        {(APPROVAL_PROCESSING_STATUSES.includes(design.status) || design.status === 'approved') && (
+          <DesignPoStatusBar status={design.status} />
+        )}
 
         {showAcceptAndAssignPanel && (
           <div className="mb-4 p-4 rounded-lg bg-background border border-border">
             <p className="text-sm text-text-secondary mb-4">
-              Accept this enquiry and assign a design in-charge. The enquiry will appear in that
-              designer&apos;s list immediately.
+              Accept this enquiry and assign a design in-charge. The designer starts work, imports the
+              duct schedule from Excel, then submits to accounts.
             </p>
             {designAssignees.length === 0 ? (
               <p className="text-sm text-warning mb-3">
@@ -625,7 +672,13 @@ export function EnquiryDetailPage() {
                   }}
                   options={designAssignees.map((emp) => ({
                     value: emp.id,
-                    label: `${emp.name}${emp.departmentName ? ` · ${emp.departmentName}` : ''}`,
+                    label: `${emp.name}${
+                      emp.jobRoles.length
+                        ? ` — ${emp.jobRoles.map((r) => r.label).join(', ')}`
+                        : emp.departmentName
+                          ? ` · ${emp.departmentName}`
+                          : ''
+                    }`,
                   }))}
                 />
                 {designAssigneeRole && (
@@ -649,7 +702,17 @@ export function EnquiryDetailPage() {
           </div>
         )}
 
-
+        {canBeginDesignWork && !showAcceptAndAssignPanel && (
+          <div className="mb-4 p-4 rounded-lg bg-background border border-border">
+            <p className="text-sm text-text-secondary mb-4">
+              {enquiry.currentAssigneeName
+                ? `${enquiry.currentAssigneeName} is assigned. Start work to import the duct schedule and submit to accounts.`
+                : 'Start design work to import the duct schedule and submit to accounts.'}
+            </p>
+            {formError && <p className="text-error text-sm mb-3">{formError}</p>}
+            <Button onClick={handleBeginDesignWork}>Start working on design</Button>
+          </div>
+        )}
 
         {needsRevisionResume && canManageDesignWorkflow(roles) && (
           <div className="mb-4 p-4 rounded-lg bg-background border border-border">
@@ -668,7 +731,7 @@ export function EnquiryDetailPage() {
 
             <p className="text-sm text-text-secondary">
               {canEditExtraction
-                ? 'Enter or import duct schedule values. You can save at any pre-delivery stage; use Request redesign or workflow step-back when accounts or production must revisit design.'
+                ? 'Import the duct schedule from Excel (required before accounts). You can adjust totals below if needed. Use Request redesign while working on design; during PO processing use Step back or Return to design when engineering must revise.'
                 : 'Duct editing is locked after full delivery or once dispatch has started.'}
             </p>
 
@@ -678,32 +741,6 @@ export function EnquiryDetailPage() {
                   Import from Excel
                 </Button>
               </Link>
-            )}
-
-            {(enquiry.ductScheduleDocuments?.length ?? 0) > 0 && (
-              <div className="rounded-lg border border-border bg-background p-4 space-y-2">
-                <p className="text-sm font-medium">Duct schedule Excel</p>
-                <ul className="space-y-2">
-                  {enquiry.ductScheduleDocuments!.map((doc) => (
-                    <li key={doc.id} className="flex items-center justify-between gap-3 text-sm">
-                      <span className="truncate">{doc.fileName}</span>
-                      <button
-                        type="button"
-                        className="flex items-center gap-1 text-primary shrink-0 min-h-11 px-2"
-                        onClick={() => downloadEnquiryDocument({ ...doc, enquiryId: enquiry.id }, isApiMode)}
-                      >
-                        <Download className="w-4 h-4" />
-                        Download
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-                {(enquiry.ductLines?.length ?? 0) > 0 && (
-                  <p className="text-xs text-text-secondary">
-                    {enquiry.ductLines!.length} duct line(s) saved for order conversion.
-                  </p>
-                )}
-              </div>
             )}
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -772,12 +809,12 @@ export function EnquiryDetailPage() {
               />
             )}
 
-            {canRevertDesignStep && !canReturnToDesign && (
+            {canRevertDesignStep && (
               <Textarea
-                label="Workflow note (optional)"
+                label="PO step-back note (optional)"
                 value={workflowNote}
                 onChange={(e) => setWorkflowNote(e.target.value)}
-                placeholder="e.g. Move PO workflow back one step"
+                placeholder="e.g. PO details need correction before the next approval step"
               />
             )}
 
@@ -805,6 +842,14 @@ export function EnquiryDetailPage() {
                 </Button>
               )}
 
+              {design.status === 'in_review' &&
+                canManageDesignWorkflow(roles) &&
+                !hasDuctScheduleImported(enquiry) && (
+                  <p className="text-sm text-text-secondary w-full">
+                    Import duct schedule from Excel to enable submit to accounts.
+                  </p>
+                )}
+
               {canSubmitToAccounts && (
                 <Button onClick={handleSubmitToAccounts}>Submit to accounts</Button>
               )}
@@ -829,7 +874,7 @@ export function EnquiryDetailPage() {
 
               {canRevertDesignStep && (
                 <Button variant="secondary" onClick={handleRevertDesignStep}>
-                  Step back (previous stage)
+                  {designRevertStepLabel(design.status)}
                 </Button>
               )}
 

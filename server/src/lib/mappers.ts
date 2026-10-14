@@ -5,6 +5,7 @@ import type {
   EnquiryActivity,
   EnquiryDocument,
 } from '@prisma/client'
+import { employeeDisplayNameFromRow } from './employee-display.js'
 
 type EnquiryWithRelations = Enquiry & {
   customer: { id: string; name: string }
@@ -22,8 +23,8 @@ type EnquiryWithRelations = Enquiry & {
     dai: unknown
     rmt: unknown
   }[]
-  personInCharge?: { id: string; name: string } | null
-  currentAssignee?: { id: string; name: string } | null
+  personInCharge?: { id: string; name: string; user?: { name: string } | null } | null
+  currentAssignee?: { id: string; name: string; user?: { name: string } | null } | null
   customerOrder?: {
     id: string
     status: string
@@ -221,9 +222,10 @@ export function mapEnquiryToFrontend(enquiry: EnquiryWithRelations) {
     expectedCompletion: enquiry.expectedCompletion?.toISOString().split('T')[0],
     salesPerson: enquiry.salesPerson,
     personInChargeId: enquiry.personInChargeId,
-    personInChargeName: enquiry.personInCharge?.name ?? enquiry.salesPerson,
+    personInChargeName:
+      employeeDisplayNameFromRow(enquiry.personInCharge) ?? enquiry.salesPerson,
     currentAssigneeId: enquiry.currentAssigneeId,
-    currentAssigneeName: enquiry.currentAssignee?.name,
+    currentAssigneeName: employeeDisplayNameFromRow(enquiry.currentAssignee),
     currentAssigneeRoleCode: enquiry.currentAssigneeRoleCode,
     priority: mapPriority(enquiry.priority) as 'low' | 'normal' | 'high' | 'urgent',
     source: enquiry.source,

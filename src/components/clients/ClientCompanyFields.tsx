@@ -71,9 +71,10 @@ type Props = {
   onChange: (value: ClientFormFields) => void
   nameRequired?: boolean
   compact?: boolean
+  codeError?: string
 }
 
-export function ClientCompanyFields({ value, onChange, nameRequired, compact }: Props) {
+export function ClientCompanyFields({ value, onChange, nameRequired, compact, codeError }: Props) {
   const set = (key: keyof ClientFormFields, val: string) => onChange({ ...value, [key]: val })
 
   return (
@@ -87,7 +88,8 @@ export function ClientCompanyFields({ value, onChange, nameRequired, compact }: 
       />
       <Input
         label="Client code"
-        helper="Optional short code"
+        helper="Optional. Cannot match a project code or another client code."
+        error={codeError}
         value={value.code}
         onChange={(e) => set('code', e.target.value)}
         placeholder="e.g. ACME"

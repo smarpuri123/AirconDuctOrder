@@ -34,8 +34,8 @@ import { DispatchDetailPage } from '@/pages/DispatchDetailPage'
 import { DispatchListPage } from '@/pages/DispatchListPage'
 
 import { SettingsPage } from '@/pages/SettingsPage'
+import { AdminDebugLogsPage } from '@/pages/AdminDebugLogsPage'
 
-import { isApiMode } from '@/lib/api'
 import { NotificationProvider } from '@/components/notifications/NotificationProvider'
 
 import { MobileLayout } from '@/mobile/layout/MobileLayout'
@@ -137,12 +137,14 @@ export default function App() {
 
             <Route path="/settings" element={<SettingsPage />} />
 
+            <Route path="/sys/debug" element={<AdminDebugLogsPage />} />
+
           </Route>
           </Route>
 
         </Route>
 
-        <Route path="*" element={<Navigate to={isApiMode ? '/login' : '/'} replace />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
 
       </Routes>
       </NotificationProvider>
