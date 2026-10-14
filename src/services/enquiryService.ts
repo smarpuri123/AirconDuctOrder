@@ -25,7 +25,6 @@ import {
   enquiryHasClientInput,
   isApprovalProcessing,
   isDesignReviewWork,
-  needsEnquiryIntake,
 } from '@/lib/enquiryWorkflow'
 import { orgService } from './orgService'
 import { orderService } from './orderService'
@@ -142,8 +141,6 @@ function attachLocalInputFiles(enquiry: Enquiry, files: EnquiryFilePayload[]): v
     metadata: { documentIds: createdIds, inputRevision },
   })
 }
-
-const STAGE_ORDER: EnquiryStage[] = ['enquiry', 'design_review', 'order', 'manufacturing', 'dispatch', 'completed']
 
 export const enquiryService = {
   getEnquiries(): Enquiry[] {
