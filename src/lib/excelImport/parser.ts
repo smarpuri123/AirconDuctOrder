@@ -2,12 +2,14 @@ import * as XLSX from 'xlsx'
 import type { ParsedSheet, ParsedWorkbook, SheetIssue } from '@/types/excelImport'
 import { normalizeHeader } from './normalize'
 import { FIELD_ALIASES } from './fields'
+
 const ALL_ALIASES = new Set(
   Object.values(FIELD_ALIASES).flat().map((a) => normalizeHeader(a)),
 )
 
 function cellToString(v: unknown): string {
   if (v == null) return ''
+  if (v instanceof Date) return v.toISOString().split('T')[0]
   if (typeof v === 'number') return String(v)
   return String(v).trim()
 }
@@ -44,7 +46,11 @@ function isDataRow(row: string[]): boolean {
   if (/^project\s*:/i.test(first)) return false
   if (/flat oval|boq|location/i.test(row.join(' '))) return false
   const tagLike = row[0]
-  if (tagLike && /^tag/i.test(tagLike) && row.some((c) => /description|width|qty/i.test(c))) {
+  if (
+    tagLike &&
+    /^(tag|duct)/i.test(tagLike) &&
+    row.some((c) => /description|width|qty/i.test(c))
+  ) {
     return false
   }
   return true
@@ -63,7 +69,7 @@ export function parseExcelFile(file: File): Promise<ParsedWorkbook> {
           const rows = XLSX.utils.sheet_to_json<(string | number)[]>(sheet, {
             header: 1,
             defval: '',
-            raw: false,
+            raw: true,
           }) as unknown[][]
           const rawRows = rows.map((r) => (Array.isArray(r) ? r.map(cellToString) : []))
           const issues: SheetIssue[] = []
@@ -123,4 +129,3 @@ export function parseExcelFile(file: File): Promise<ParsedWorkbook> {
     reader.readAsArrayBuffer(file)
   })
 }
-

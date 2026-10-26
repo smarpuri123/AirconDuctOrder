@@ -12,15 +12,27 @@ import { computeDispatchArea } from '@/lib/calculations'
 import { canTransitionDispatchTo, normalizeDispatchStatus } from '@/lib/dispatchWorkflow'
 import { enquiryService } from './enquiryService'
 import { orderService } from './orderService'
-import type { Dispatch, DispatchItem, DispatchStatus, VehicleDetails } from '@/types'
+import type {
+  Dispatch,
+  DispatchAccessories,
+  DispatchItem,
+  DispatchStatus,
+  VehicleDetails,
+} from '@/types'
+
+function normalizeLoadedTripStatus(list: Dispatch[]): Dispatch[] {
+  return list.map((d) =>
+    d.status === 'loading' && (d.items?.length ?? 0) > 0 ? { ...d, status: 'loaded' } : d,
+  )
+}
 
 function getDispatchesData(): Dispatch[] {
   if (isApiMode) {
     const cached = getCachedDispatches()
-    if (cached) return cached
+    if (cached) return normalizeLoadedTripStatus(cached)
     return []
   }
-  return loadFromStorage('dispatches', dispatchesSeed as Dispatch[])
+  return normalizeLoadedTripStatus(loadFromStorage('dispatches', dispatchesSeed as Dispatch[]))
 }
 
 function persistDispatches(dispatches: Dispatch[]): void {
@@ -71,18 +83,15 @@ export const dispatchService = {
     )
   },
 
-  async createDispatch(
-    orderId: string,
-    quantities: Record<string, number>,
-    vehicle: VehicleDetails,
-  ): Promise<Dispatch> {
+  /** Step 1: Create trip first with vehicle & driver details; marks status as 'loading'. */
+  async createTrip(orderId: string, vehicle: VehicleDetails): Promise<Dispatch> {
     if (isApiMode) {
       const dispatch = await api<Dispatch>('/dispatches', {
         method: 'POST',
         body: JSON.stringify({
           customerOrderId: orderId,
           vehicle,
-          items: quantities,
+          items: {},
         }),
       })
       await Promise.all([refreshOrders(), refreshDispatches()])
@@ -90,6 +99,73 @@ export const dispatchService = {
     }
 
     const order = orderService.getOrderById(orderId)
+    if (!order) throw new Error('Order not found')
+
+    const dispatch: Dispatch = {
+      id: `disp-${Date.now()}`,
+      dispatchNo: getNextDispatchNo(),
+      orderId: order.id,
+      orderNo: order.orderNo,
+      customerName: order.customerName,
+      vehicle,
+      items: [],
+      totalQuantity: 0,
+      totalArea: 0,
+      status: 'loading',
+      dispatchDate: vehicle.loadingDate,
+      createdAt: new Date().toISOString(),
+    }
+
+    const dispatches = getDispatchesData()
+    dispatches.push(dispatch)
+    persistDispatches(dispatches)
+
+    const tripNumber = this.getDispatchesByOrderId(orderId).length
+    const user = getCurrentUser()
+    enquiryService.appendActivityByOrderId(orderId, {
+      phase: 'dispatch',
+      title: `Dispatch Trip ${tripNumber} started (Loading)`,
+      detail: `${dispatch.dispatchNo} · Vehicle ${vehicle.vehicleNumber} (${vehicle.driverName})`,
+      actor: user.name,
+      actorRole: user.role,
+      revision: tripNumber,
+    })
+
+    return dispatch
+  },
+
+  /** Step 2 & 3: Save loaded ducts & accessories onto an active loading trip. */
+  async saveDispatchLoad(
+    dispatchId: string,
+    quantities: Record<string, number>,
+    accessories?: DispatchAccessories,
+  ): Promise<Dispatch> {
+    if (isApiMode) {
+      const dispatch = await api<Dispatch>(`/dispatches/${dispatchId}/load`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          items: quantities,
+          accessories,
+        }),
+      })
+      await Promise.all([refreshOrders(), refreshDispatches()])
+      return dispatch
+    }
+
+    const dispatches = getDispatchesData()
+    const idx = dispatches.findIndex((d) => d.id === dispatchId)
+    if (idx === -1) throw new Error('Dispatch trip not found')
+    const existing = dispatches[idx]
+
+    // Restore any previous item quantities from this trip before applying the new load
+    if (existing.items.length > 0) {
+      orderService.updateItemDispatchedQty(
+        existing.orderId,
+        existing.items.map((i) => ({ orderItemId: i.orderItemId, quantity: -i.quantity })),
+      )
+    }
+
+    const order = orderService.getOrderById(existing.orderId)
     if (!order) throw new Error('Order not found')
 
     const items: DispatchItem[] = []
@@ -101,7 +177,9 @@ export const dispatchService = {
 
       const available = orderItem.readyQty - orderItem.dispatchedQty
       if (qty > available) {
-        throw new Error(`Cannot dispatch ${qty} for Tag ${orderItem.tagNo}. Only ${available} available.`)
+        throw new Error(
+          `Cannot dispatch ${qty} for Duct ${orderItem.tagNo}. Only ${available} available.`,
+        )
       }
 
       const unitArea = orderItem.orderedQty > 0 ? orderItem.area / orderItem.orderedQty : 0
@@ -125,51 +203,75 @@ export const dispatchService = {
     const totalQuantity = items.reduce((s, i) => s + i.quantity, 0)
     const totalArea = Math.round(computeDispatchArea(items) * 100) / 100
 
-    const dispatch: Dispatch = {
-      id: `disp-${Date.now()}`,
-      dispatchNo: getNextDispatchNo(),
-      orderId: order.id,
-      orderNo: order.orderNo,
-      customerName: order.customerName,
-      vehicle,
+    const nextStatus: DispatchStatus =
+      existing.status === 'loading' || existing.status === 'draft'
+        ? 'loaded'
+        : existing.status
+
+    const updated: Dispatch = {
+      ...existing,
+      status: nextStatus,
       items,
+      accessories,
       totalQuantity,
       totalArea,
-      status: 'loading',
-      dispatchDate: vehicle.loadingDate,
-      createdAt: new Date().toISOString(),
     }
-
-    const dispatches = getDispatchesData()
-    dispatches.push(dispatch)
+    dispatches[idx] = updated
     persistDispatches(dispatches)
-    orderService.updateItemDispatchedQty(orderId, itemUpdates)
+    orderService.updateItemDispatchedQty(order.id, itemUpdates)
 
-    if (!isApiMode) {
-      const tripNumber = this.getDispatchesByOrderId(orderId).length
-      const user = getCurrentUser()
-      enquiryService.appendActivityByOrderId(orderId, {
+    const tripNumber = this.getDispatchesByOrderId(order.id).length
+    const user = getCurrentUser()
+    enquiryService.appendActivityByOrderId(order.id, {
+      phase: 'dispatch',
+      title: `Dispatch Trip ${tripNumber} loaded — Ready to deliver`,
+      detail: `${updated.dispatchNo} · ${totalQuantity} qty · ${updated.vehicle.vehicleNumber}`,
+      actor: user.name,
+      actorRole: user.role,
+      revision: tripNumber,
+    })
+
+    const updatedOrder = orderService.getOrderById(order.id)
+    if (updatedOrder?.status === 'fully_dispatched') {
+      enquiryService.appendActivityByOrderId(order.id, {
         phase: 'dispatch',
-        title: `Dispatch Trip ${tripNumber} created`,
-        detail: `${dispatch.dispatchNo} · ${totalQuantity} qty · ${vehicle.vehicleNumber}`,
+        title: 'Delivery completed',
+        detail: 'All quantities dispatched — order closed',
         actor: user.name,
         actorRole: user.role,
-        revision: tripNumber,
       })
-
-      const updatedOrder = orderService.getOrderById(orderId)
-      if (updatedOrder?.status === 'fully_dispatched') {
-        enquiryService.appendActivityByOrderId(orderId, {
-          phase: 'dispatch',
-          title: 'Delivery completed',
-          detail: 'All quantities dispatched — order closed',
-          actor: user.name,
-          actorRole: user.role,
-        })
-      }
     }
 
-    return dispatch
+    return updated
+  },
+
+  async createDispatch(
+    orderId: string,
+    quantities: Record<string, number>,
+    vehicle: VehicleDetails,
+    accessories?: DispatchAccessories,
+    existingDispatchId?: string,
+  ): Promise<Dispatch> {
+    if (existingDispatchId) {
+      return this.saveDispatchLoad(existingDispatchId, quantities, accessories)
+    }
+
+    if (isApiMode) {
+      const dispatch = await api<Dispatch>('/dispatches', {
+        method: 'POST',
+        body: JSON.stringify({
+          customerOrderId: orderId,
+          vehicle,
+          items: quantities,
+          accessories,
+        }),
+      })
+      await Promise.all([refreshOrders(), refreshDispatches()])
+      return dispatch
+    }
+
+    const trip = await this.createTrip(orderId, vehicle)
+    return this.saveDispatchLoad(trip.id, quantities, accessories)
   },
 
   async updateDispatchStatus(id: string, status: DispatchStatus): Promise<Dispatch> {

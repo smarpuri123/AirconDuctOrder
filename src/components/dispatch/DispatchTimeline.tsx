@@ -1,7 +1,9 @@
+import { useNavigate } from 'react-router-dom'
 import type { Dispatch, Order } from '@/types'
 import { formatArea, formatDate } from '@/lib/calculations'
+import { resolveDispatchAccessories } from '@/lib/dispatchAccessories'
 import { DispatchStatusChip } from '@/components/ui/Chip'
-import { Package, Truck } from 'lucide-react'
+import { Check, Package, Truck } from 'lucide-react'
 
 interface DispatchTimelineProps {
   order: Order
@@ -9,6 +11,7 @@ interface DispatchTimelineProps {
 }
 
 export function DispatchTimeline({ order, dispatches }: DispatchTimelineProps) {
+  const navigate = useNavigate()
   const events = [
     ...dispatches.map((d) => ({
       type: 'dispatch' as const,
@@ -41,17 +44,39 @@ export function DispatchTimeline({ order, dispatches }: DispatchTimelineProps) {
 
           <div className="pb-8 flex-1">
             {event.type === 'dispatch' ? (
-              <>
+              <div
+                onClick={() => navigate(`/dispatch/${event.dispatch.id}`)}
+                className="cursor-pointer hover:bg-background/60 rounded-lg p-2 -m-2 transition-colors"
+              >
                 <div className="flex items-center gap-3 mb-1">
-                  <span className="font-semibold">{event.dispatch.dispatchNo}</span>
+                  <span className="font-semibold text-primary hover:underline">
+                    {event.dispatch.dispatchNo}
+                  </span>
                   <DispatchStatusChip status={event.dispatch.status} />
                 </div>
                 <p className="text-sm text-text-secondary">{formatDate(event.dispatch.dispatchDate)}</p>
-                <p className="text-sm text-text-secondary">Vehicle {event.dispatch.vehicle.vehicleNumber}</p>
+                <p className="text-sm text-text-secondary">
+                  Vehicle {event.dispatch.vehicle.vehicleNumber} · {event.dispatch.vehicle.driverName}
+                </p>
                 <p className="text-sm font-medium tabular-nums mt-2">
                   {event.dispatch.totalQuantity} Qty · {formatArea(event.dispatch.totalArea)}
                 </p>
-              </>
+                {(() => {
+                  const acc = resolveDispatchAccessories(event.dispatch, order)
+                  const inc = [
+                    acc.corner.included ? `CORNNER: ${acc.corner.quantity}` : null,
+                    acc.nBolt.included ? `N/BOLT: ${acc.nBolt.quantity}` : null,
+                    acc.cleat.included ? `CLEAT: ${acc.cleat.quantity}` : null,
+                  ].filter(Boolean)
+                  if (inc.length === 0) return null
+                  return (
+                    <p className="text-xs text-text-secondary mt-1 inline-flex items-center gap-1">
+                      <Check className="w-3.5 h-3.5 text-success" />
+                      Accessories: {inc.join(' · ')} NOS
+                    </p>
+                  )
+                })()}
+              </div>
             ) : (
               <>
                 <p className="font-semibold">ORDER CREATED</p>

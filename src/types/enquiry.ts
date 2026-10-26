@@ -25,7 +25,7 @@ export type DesignReviewStatus =
 
 
 
-export type ActivityPhase = 'enquiry' | 'design' | 'order' | 'production' | 'dispatch'
+export type ActivityPhase = 'enquiry' | 'design' | 'accounts' | 'order' | 'production' | 'dispatch'
 
 
 
@@ -92,7 +92,7 @@ export interface EnquiryDesignDocument {
 
   isCurrent: boolean
 
-  category?: 'drawing' | 'duct_schedule'
+  category?: 'drawing' | 'duct_schedule' | 'design_output' | 'quotation'
 
   uploadedAt: string
 
@@ -131,6 +131,10 @@ export interface ActivityEntry {
     assigneeRoleCode?: string
 
     productionProcess?: 'straight_ducts' | 'plasma_ducts'
+
+    productionTrackAction?: 'start' | 'pause' | 'resume' | 'complete'
+
+    activeSeconds?: number
 
   }
 
@@ -240,6 +244,8 @@ export interface Enquiry {
   designDocuments?: EnquiryDesignDocument[]
 
   ductScheduleDocuments?: EnquiryDesignDocument[]
+  designOutputDocuments?: EnquiryDesignDocument[]
+  quotationDocuments?: EnquiryDesignDocument[]
 
   currentDesignDocuments?: EnquiryDesignDocument[]
 

@@ -19,6 +19,8 @@ import {
   revertDesignWorkflowStep,
   convertToOrder,
   attachEnquiryInputFiles,
+  uploadDesignOutputDocuments,
+  uploadQuotationDocuments,
   completeEnquiryIntake,
   acceptEnquiryAndAssignDesign,
   getEnquiryDocument,
@@ -29,7 +31,11 @@ import { resolveEnquiryListScope } from '../lib/enquiry-access.js'
 import { guardEnquiryAssignedToUser } from './enquiry-access-guard.js'
 
 function canManageAccountsWorkflow(roles: string[]): boolean {
-  return roles.includes('ADMIN') || roles.includes('ACCOUNTS')
+  return roles.includes('ADMIN') || roles.includes('SUPERVISOR') || roles.includes('ACCOUNTS')
+}
+
+function canApproveQuoteForClient(roles: string[]): boolean {
+  return roles.includes('ADMIN') || roles.includes('SUPERVISOR')
 }
 
 const createEnquirySchema = z
@@ -93,8 +99,8 @@ const extractionSchema = z.object({
 const ductLineSchema = z.object({
   tagNo: z.string().min(1),
   description: z.string().optional(),
-  width: z.number().int().positive(),
-  height: z.number().int().positive(),
+  width: z.number().int().nonnegative(),
+  height: z.number().int().nonnegative(),
   length: z.number().int().positive(),
   quantity: z.number().int().positive(),
   area: z.number().optional(),
@@ -281,6 +287,53 @@ export async function enquiryRoutes(app: FastifyInstance) {
   )
 
   app.post(
+    '/enquiries/:id/design/output-documents',
+    { preHandler: [app.authenticate, app.authorize(PERMISSIONS.ENQUIRIES_WRITE)] },
+    async (request, reply) => {
+      const { id } = request.params as { id: string }
+      if (!(await guardEnquiryAssignedToUser(request, reply, id))) return
+      const body = uploadFilesSchema.parse(request.body)
+      try {
+        const enquiry = await uploadDesignOutputDocuments(
+          id,
+          body.files,
+          activityActorFromRequest(request),
+        )
+        if (!enquiry) return reply.code(404).send({ error: 'Enquiry not found' })
+        return enquiry
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Design file upload failed'
+        return reply.code(400).send({ error: message })
+      }
+    },
+  )
+
+  app.post(
+    '/enquiries/:id/design/quotation-documents',
+    { preHandler: [app.authenticate, app.authorize(PERMISSIONS.ENQUIRIES_WRITE)] },
+    async (request, reply) => {
+      if (!canManageAccountsWorkflow(request.authUser!.roles)) {
+        return reply.code(403).send({ error: 'Accounts, supervisor, or admin access required' })
+      }
+      const { id } = request.params as { id: string }
+      if (!(await guardEnquiryAssignedToUser(request, reply, id))) return
+      const body = uploadFilesSchema.parse(request.body)
+      try {
+        const enquiry = await uploadQuotationDocuments(
+          id,
+          body.files,
+          activityActorFromRequest(request),
+        )
+        if (!enquiry) return reply.code(404).send({ error: 'Enquiry not found' })
+        return enquiry
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Quote document upload failed'
+        return reply.code(400).send({ error: message })
+      }
+    },
+  )
+
+  app.post(
     '/enquiries/:id/design/submit-to-accounts',
     { preHandler: [app.authenticate, app.authorize(PERMISSIONS.ENQUIRIES_WRITE)] },
     async (request, reply) => {
@@ -302,13 +355,31 @@ export async function enquiryRoutes(app: FastifyInstance) {
     { preHandler: [app.authenticate, app.authorize(PERMISSIONS.ENQUIRIES_WRITE)] },
     async (request, reply) => {
       if (!canManageAccountsWorkflow(request.authUser!.roles)) {
-        return reply.code(403).send({ error: 'Accounts or admin access required' })
+        return reply.code(403).send({ error: 'Accounts, supervisor, or admin access required' })
       }
       const { id } = request.params as { id: string }
       if (!(await guardEnquiryAssignedToUser(request, reply, id))) return
-      const enquiry = await markPoForReview(id, activityActorFromRequest(request))
-      if (!enquiry) return reply.code(400).send({ error: 'Enquiry must be submitted to accounts first' })
-      return enquiry
+      const body = z
+        .object({
+          files: z
+            .array(
+              z.object({
+                fileName: z.string().min(1),
+                mimeType: z.string().optional(),
+                dataBase64: z.string().min(1),
+              }),
+            )
+            .optional(),
+        })
+        .parse(request.body ?? {})
+      try {
+        const enquiry = await markPoForReview(id, activityActorFromRequest(request), body.files)
+        if (!enquiry) return reply.code(400).send({ error: 'Enquiry must be submitted to accounts first' })
+        return enquiry
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Could not submit Quote for review'
+        return reply.code(400).send({ error: message })
+      }
     },
   )
 
@@ -316,13 +387,13 @@ export async function enquiryRoutes(app: FastifyInstance) {
     '/enquiries/:id/design/po-for-approval',
     { preHandler: [app.authenticate, app.authorize(PERMISSIONS.ENQUIRIES_WRITE)] },
     async (request, reply) => {
-      if (!canManageAccountsWorkflow(request.authUser!.roles)) {
-        return reply.code(403).send({ error: 'Accounts or admin access required' })
+      if (!canApproveQuoteForClient(request.authUser!.roles)) {
+        return reply.code(403).send({ error: 'Admin or supervisor access required to approve Quote for client submission' })
       }
       const { id } = request.params as { id: string }
       if (!(await guardEnquiryAssignedToUser(request, reply, id))) return
       const enquiry = await markPoForApproval(id, activityActorFromRequest(request))
-      if (!enquiry) return reply.code(400).send({ error: 'PO must be in review stage first' })
+      if (!enquiry) return reply.code(400).send({ error: 'Quote must be in review stage first' })
       return enquiry
     },
   )
@@ -332,13 +403,13 @@ export async function enquiryRoutes(app: FastifyInstance) {
     { preHandler: [app.authenticate, app.authorize(PERMISSIONS.ENQUIRIES_WRITE)] },
     async (request, reply) => {
       if (!canManageAccountsWorkflow(request.authUser!.roles)) {
-        return reply.code(403).send({ error: 'Accounts or admin access required' })
+        return reply.code(403).send({ error: 'Accounts, supervisor, or admin access required' })
       }
       const { id } = request.params as { id: string }
       if (!(await guardEnquiryAssignedToUser(request, reply, id))) return
       const enquiry = await approveDesign(id, activityActorFromRequest(request))
       if (!enquiry) {
-        return reply.code(400).send({ error: 'PO must be pending approval before final sign-off' })
+        return reply.code(400).send({ error: 'Quote must be submitted to client before recording client approval' })
       }
       return enquiry
     },

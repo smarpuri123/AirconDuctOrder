@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { clearToken, fetchMe, getToken, login as apiLogin, type AuthUser } from '@/lib/api'
 import { hydrateFromApi, clearDataCache } from '@/lib/dataCache'
+import { logAuthFailure } from '@/lib/clientLogBuffer'
 
 interface AuthState {
   user: AuthUser | null
@@ -25,6 +26,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       await hydrateFromApi()
     } catch (err) {
       set({ loading: false })
+      const detail = err instanceof Error ? err.message : String(err)
+      logAuthFailure(`Login failed for "${username}"`, detail)
       throw err
     }
   },
@@ -47,7 +50,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const user = await fetchMe()
       await hydrateFromApi()
       set({ user, loading: false, initialized: true })
-    } catch {
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err)
+      logAuthFailure('Session restore failed (/auth/me)', detail)
       clearToken()
       set({ user: null, loading: false, initialized: true })
     }

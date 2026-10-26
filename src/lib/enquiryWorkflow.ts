@@ -111,9 +111,9 @@ export function canRevertDesignStepUi(enquiry: Enquiry, order?: OrderWorkflowSna
 }
 
 const REVERT_STEP_LABELS: Partial<Record<DesignReviewStatus, string>> = {
-  submitted_to_accounts: 'submitted to accounts',
-  po_for_review: 'PO for review',
-  po_for_approval: 'PO for approval',
+  submitted_to_accounts: 'Quote preparation',
+  po_for_review: 'Quote review',
+  po_for_approval: 'Quote submitted to client',
 }
 
 export function designRevertStepLabel(status: DesignReviewStatus): string {

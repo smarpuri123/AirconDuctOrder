@@ -44,7 +44,26 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
   }
 
   const started = performance.now()
-  const res = await fetch(`${API_BASE}${path}`, { ...options, method, headers, body })
+  let res: Response
+  try {
+    res = await fetch(`${API_BASE}${path}`, { ...options, method, headers, body })
+  } catch (err) {
+    const durationMs = Math.round(performance.now() - started)
+    const detail = err instanceof Error ? err.message : String(err)
+    pushClientLog({
+      kind: 'network',
+      message: `${method} ${path} — cannot reach server`,
+      method,
+      path,
+      status: 0,
+      durationMs,
+      detail,
+    })
+    throw new ApiError(
+      'Cannot reach the server. Check your connection or try again in a few minutes.',
+      0,
+    )
+  }
   const durationMs = Math.round(performance.now() - started)
 
   if (!res.ok) {

@@ -1,47 +1,85 @@
 import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Truck } from 'lucide-react'
 import { orderService } from '@/services/orderService'
+import { dispatchService } from '@/services/dispatchService'
 import { useAppStore } from '@/store/appStore'
-import {
-  formatDimensions,
-  getItemAvailable,
-  sortOrderItemsByTagNo,
-} from '@/lib/calculations'
-import { MobileQuantityControl } from '@/mobile/components/MobileQuantityControl'
+import { getTodayISO } from '@/lib/calculations'
 import { useApiData } from '@/hooks/useApiData'
+import type { VehicleDetails } from '@/types'
 
 export function MobileCreateDispatchPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { setDispatchDraft } = useAppStore()
+  const { dispatchDraft, setDispatchDraft } = useAppStore()
   useApiData()
   const order = orderService.getOrderById(id!)
-  const [quantities, setQuantities] = useState<Record<string, number>>({})
+
+  const existingVehicle =
+    dispatchDraft?.orderId === id && dispatchDraft?.vehicle ? dispatchDraft.vehicle : undefined
+
+  const [vehicle, setVehicle] = useState<VehicleDetails>(
+    existingVehicle ?? {
+      vehicleNumber: '',
+      driverName: '',
+      driverMobile: '',
+      transporter: '',
+      vehicleType: '32 ft',
+      loadingDate: getTodayISO(),
+      loadingTime: '10:30',
+    },
+  )
+  const [creatingTrip, setCreatingTrip] = useState(false)
+  const [error, setError] = useState('')
 
   if (!order) return <p className="text-text-secondary">Order not found.</p>
 
-  const availableItems = sortOrderItemsByTagNo(
-    order.items.filter((item) => getItemAvailable(item) > 0),
+  const isValid = Boolean(
+    vehicle.vehicleNumber.trim() &&
+      vehicle.driverName.trim() &&
+      vehicle.driverMobile.trim() &&
+      vehicle.transporter.trim() &&
+      vehicle.loadingDate &&
+      vehicle.loadingTime,
   )
-  const totalSelected = Object.values(quantities).reduce((s, q) => s + q, 0)
 
-  const handleSelectAll = () => {
-    const all: Record<string, number> = {}
-    availableItems.forEach((item) => {
-      all[item.id] = getItemAvailable(item)
-    })
-    setQuantities(all)
+  const update = (field: keyof VehicleDetails, value: string) => {
+    setVehicle((prev) => ({ ...prev, [field]: value }))
   }
 
-  const handleContinue = () => {
-    if (totalSelected === 0) return
-    setDispatchDraft({ orderId: order.id, quantities })
-    navigate(`/m/orders/${order.id}/vehicle`)
+  const handleCreateTripAndLoad = async () => {
+    if (!isValid || creatingTrip) return
+    setCreatingTrip(true)
+    setError('')
+    try {
+      let dispatchId =
+        dispatchDraft?.orderId === order.id ? dispatchDraft.dispatchId : undefined
+      if (!dispatchId) {
+        const trip = await dispatchService.createTrip(order.id, vehicle)
+        dispatchId = trip.id
+      }
+      setDispatchDraft({
+        orderId: order.id,
+        dispatchId,
+        vehicle,
+        quantities:
+          dispatchDraft?.orderId === order.id ? (dispatchDraft.quantities ?? {}) : {},
+        loadSequence:
+          dispatchDraft?.orderId === order.id ? (dispatchDraft.loadSequence ?? []) : [],
+      })
+      navigate(`/m/orders/${order.id}/vehicle`)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create dispatch trip')
+    } finally {
+      setCreatingTrip(false)
+    }
   }
+
+  const fieldClass =
+    'w-full h-12 px-4 rounded-xl border-2 border-border bg-surface text-base'
 
   return (
-    <div className="space-y-4 pb-24">
+    <div className="space-y-4 pb-8">
       <button
         type="button"
         onClick={() => navigate(`/m/orders/${order.id}`)}
@@ -53,70 +91,98 @@ export function MobileCreateDispatchPage() {
 
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold">Select Tags</h2>
+          <p className="text-xs font-semibold uppercase tracking-wide text-primary">
+            Step 1 of 3 · Create Trip
+          </p>
+          <h2 className="text-xl font-bold">Vehicle &amp; Driver Details</h2>
           <p className="text-sm text-text-secondary">{order.orderNo}</p>
         </div>
-        <button
-          type="button"
-          onClick={handleSelectAll}
-          className="text-sm font-semibold text-primary px-3 py-2 rounded-lg bg-primary/10 touch-manipulation"
-        >
-          All
-        </button>
+        <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-500/15 text-amber-700 border border-amber-500/30">
+          <Truck className="w-3.5 h-3.5" />
+          Loading
+        </span>
       </div>
 
-      {availableItems.length === 0 && (
-        <p className="text-center text-text-secondary py-12">No stock available to dispatch.</p>
-      )}
-
-      <ul className="space-y-4">
-        {availableItems.map((item) => {
-          const available = getItemAvailable(item)
-          const qty = quantities[item.id] ?? 0
-          return (
-            <li
-              key={item.id}
-              className="bg-surface rounded-xl border border-border p-4 shadow-level-1"
-            >
-              <div className="flex items-start justify-between gap-3 mb-4">
-                <div className="min-w-0">
-                  <p className="text-xl font-bold">Tag {item.tagNo}</p>
-                  <p className="text-sm text-text-secondary">{formatDimensions(item)}</p>
-                  <p className="text-sm mt-1">
-                    Available: <span className="font-bold text-primary">{available}</span>
-                  </p>
-                </div>
-              </div>
-              <div className="flex justify-center">
-                <MobileQuantityControl
-                  value={qty}
-                  max={available}
-                  onChange={(v) => setQuantities((prev) => ({ ...prev, [item.id]: v }))}
-                />
-              </div>
-            </li>
-          )
-        })}
-      </ul>
-
-      <div
-        className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] inset-x-0 px-4 z-10"
-      >
-        <div className="max-w-lg mx-auto bg-surface border border-border rounded-xl p-4 shadow-level-3 flex items-center justify-between gap-4">
-          <div>
-            <p className="text-xs text-text-secondary">Selected</p>
-            <p className="text-2xl font-bold tabular-nums">{totalSelected} qty</p>
-          </div>
-          <button
-            type="button"
-            disabled={totalSelected === 0}
-            onClick={handleContinue}
-            className="min-h-14 px-8 rounded-xl bg-primary text-white font-bold disabled:opacity-40 touch-manipulation"
-          >
-            Continue
-          </button>
+      <div className="space-y-4 bg-surface rounded-xl border border-border p-4">
+        <label className="block">
+          <span className="text-sm font-medium mb-1 block">Vehicle Number *</span>
+          <input
+            className={fieldClass}
+            value={vehicle.vehicleNumber}
+            onChange={(e) => update('vehicleNumber', e.target.value)}
+            placeholder="AP02AB1234"
+          />
+        </label>
+        <label className="block">
+          <span className="text-sm font-medium mb-1 block">Driver Name *</span>
+          <input
+            className={fieldClass}
+            value={vehicle.driverName}
+            onChange={(e) => update('driverName', e.target.value)}
+            placeholder="Ramesh"
+          />
+        </label>
+        <label className="block">
+          <span className="text-sm font-medium mb-1 block">Driver Mobile *</span>
+          <input
+            type="tel"
+            className={fieldClass}
+            value={vehicle.driverMobile}
+            onChange={(e) => update('driverMobile', e.target.value)}
+            placeholder="98XXXXXXXX"
+          />
+        </label>
+        <label className="block">
+          <span className="text-sm font-medium mb-1 block">Transporter *</span>
+          <input
+            className={fieldClass}
+            value={vehicle.transporter}
+            onChange={(e) => update('transporter', e.target.value)}
+            placeholder="ABC Transport"
+          />
+        </label>
+        <label className="block">
+          <span className="text-sm font-medium mb-1 block">Vehicle Type</span>
+          <input
+            className={fieldClass}
+            value={vehicle.vehicleType}
+            onChange={(e) => update('vehicleType', e.target.value)}
+            placeholder="32 ft"
+          />
+        </label>
+        <div className="grid grid-cols-2 gap-3">
+          <label className="block">
+            <span className="text-sm font-medium mb-1 block">Loading Date *</span>
+            <input
+              type="date"
+              className={fieldClass}
+              value={vehicle.loadingDate}
+              onChange={(e) => update('loadingDate', e.target.value)}
+            />
+          </label>
+          <label className="block">
+            <span className="text-sm font-medium mb-1 block">Time *</span>
+            <input
+              type="time"
+              className={fieldClass}
+              value={vehicle.loadingTime}
+              onChange={(e) => update('loadingTime', e.target.value)}
+            />
+          </label>
         </div>
       </div>
+
+      {error && <p className="text-error text-sm">{error}</p>}
+
+      <button
+        type="button"
+        disabled={!isValid || creatingTrip}
+        onClick={handleCreateTripAndLoad}
+        className="w-full min-h-14 rounded-xl bg-primary text-white font-bold flex items-center justify-center gap-2 disabled:opacity-40 touch-manipulation"
+      >
+        <Truck className="w-5 h-5" />
+        {creatingTrip ? 'Creating Trip…' : 'Create Trip & Start Loading Ducts'}
+      </button>
     </div>
   )
 }

@@ -45,7 +45,7 @@ export function computeOrderStatus(order: Order): OrderStatus {
     if (order.status === 'production') return 'production'
     return 'ready'
   }
-  if (dispatched >= order.totalQuantity) return 'fully_dispatched'
+  if (order.totalQuantity > 0 && dispatched >= order.totalQuantity) return 'fully_dispatched'
   return 'partially_dispatched'
 }
 

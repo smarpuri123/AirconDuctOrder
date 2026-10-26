@@ -8,6 +8,7 @@ import {
 } from '@/lib/enquiryWorkflow'
 import { dispatchService } from '@/services/dispatchService'
 import { enquiryService } from '@/services/enquiryService'
+import { productionAwaitingFloorStart, productionTracksNeedingWork } from '@/lib/productionTrack'
 import { orderService } from '@/services/orderService'
 
 /** Sidebar nav badges for Orders / Dispatch (re-enable when queues are wired to nav). */
@@ -21,8 +22,8 @@ const ORDERS_DISPATCH_NAV_BADGES_ENABLED = false
  * | enquiryNotStarted | Enquiry created; no client drawing yet |
  * | designReviewAction | Design phase needs engineering (extract, revise, submit) |
  * | accountsApprovalAction | With accounts / PO workflow |
- * | productionNotApproved | Order in production; production not approved to start |
- * | productionInProgress | Approved but straight/plasma processes not complete |
+ * | productionNotApproved | Order in production; neither straight nor plasma started |
+ * | productionInProgress | At least one track started and not all lines complete |
  * | ordersReadyToDispatch | Stock ready (not in production status) with qty balance |
  * | dispatchesInProgress | Trips not yet delivered |
  */
@@ -67,14 +68,9 @@ export function computeWorkQueueSnapshot(): WorkQueueSnapshot {
   const accountsApprovalAction = enquiries.filter((e) => isApprovalProcessing(e)).length
 
   const orders = ordersForOperationsKpi()
-  const productionNotApproved = orders.filter(
-    (o) => o.status === 'production' && !o.productionApproved,
-  ).length
+  const productionNotApproved = orders.filter((o) => productionAwaitingFloorStart(o)).length
   const productionInProgress = orders.filter(
-    (o) =>
-      o.status === 'production' &&
-      Boolean(o.productionApproved) &&
-      (!o.straightDuctsCompleted || !o.plasmaDuctsCompleted),
+    (o) => productionTracksNeedingWork(o) && !productionAwaitingFloorStart(o),
   ).length
   const ordersReadyToDispatch = orders.filter(
     (o) => getOrderBalanceQty(o) > 0 && o.status !== 'production',
@@ -179,10 +175,10 @@ export function productionSubtext(breakdown: WorkQueueBreakdown): string | undef
   if (total <= 0) return undefined
   const parts: string[] = []
   if (productionNotApproved > 0) {
-    parts.push(`${productionNotApproved} awaiting production approval`)
+    parts.push(`${productionNotApproved} awaiting shop-floor start`)
   }
   if (productionInProgress > 0) {
-    parts.push(`${productionInProgress} in straight/plasma steps`)
+    parts.push(`${productionInProgress} on straight/plasma lines`)
   }
   return parts.join(' · ')
 }

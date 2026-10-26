@@ -85,10 +85,10 @@ export function designStatusLabel(status: string): string {
     PENDING: 'Pending intake',
     IN_REVIEW: 'Working on design',
     REVISION_NEEDED: 'Revision needed',
-    SUBMITTED_TO_ACCOUNTS: 'Submitted to accounts',
-    PO_FOR_REVIEW: 'PO for review',
-    PO_FOR_APPROVAL: 'PO for approval',
-    APPROVED: 'Approved',
+    SUBMITTED_TO_ACCOUNTS: 'Quote preparation',
+    PO_FOR_REVIEW: 'Quote review',
+    PO_FOR_APPROVAL: 'Quote submitted to client',
+    APPROVED: 'Quote approved',
   }
   return labels[status] ?? status
 }

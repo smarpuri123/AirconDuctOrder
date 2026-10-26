@@ -6,11 +6,29 @@ export type DuctImportFieldKey =
   | 'dai'
   | 'width'
   | 'height'
+  | 'w1'
+  | 'h1'
+  | 'w2'
+  | 'h2'
   | 'length'
   | 'quantity'
   | 'gauge'
   | 'area'
+  | 'areaSqFt'
+  | 'sft24g'
+  | 'sft22g'
+  | 'sft20g'
+  | 'corner'
+  | 'nBolt'
+  | 'cleat'
   | 'rmt'
+  | 'pivotTotalCorner'
+  | 'pivotTotalNBolt'
+  | 'pivotTotalCleat'
+  | 'pivotTotalAreaSqFt'
+  | 'pivotTotal24g'
+  | 'pivotTotal22g'
+  | 'pivotTotal20g'
 
 export interface DuctImportFieldDef {
   key: DuctImportFieldKey
@@ -67,10 +85,21 @@ export interface NormalizedDuctRow {
   dai?: number
   width: number
   height: number
+  w1?: number
+  h1?: number
+  w2?: number
+  h2?: number
   length: number
   quantity: number
   gauge?: number
   area?: number
+  areaSqFt?: number
+  sft24g?: number
+  sft22g?: number
+  sft20g?: number
+  corner?: number
+  nBolt?: number
+  cleat?: number
   rmt?: number
 }
 

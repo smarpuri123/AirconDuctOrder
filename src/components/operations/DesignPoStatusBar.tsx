@@ -3,10 +3,10 @@ import { APPROVAL_PROCESSING_STATUSES } from '@/lib/enquiryWorkflow'
 
 const PO_STEPS: { status: DesignReviewStatus; label: string }[] = [
   { status: 'in_review', label: 'Working on design' },
-  { status: 'submitted_to_accounts', label: 'With accounts' },
-  { status: 'po_for_review', label: 'PO for review' },
-  { status: 'po_for_approval', label: 'PO for approval' },
-  { status: 'approved', label: 'Approved' },
+  { status: 'submitted_to_accounts', label: 'Quote preparation' },
+  { status: 'po_for_review', label: 'Quote review' },
+  { status: 'po_for_approval', label: 'Quote submitted to client' },
+  { status: 'approved', label: 'Quote approved (Order created)' },
 ]
 
 function poStepIndex(status: DesignReviewStatus): number {
@@ -20,10 +20,10 @@ export function designStatusLabel(status: DesignReviewStatus): string {
     pending: 'Awaiting design start',
     in_review: 'Working on design',
     revision_needed: 'Revision needed',
-    submitted_to_accounts: 'With accounts',
-    po_for_review: 'PO for review',
-    po_for_approval: 'PO for approval',
-    approved: 'Approved',
+    submitted_to_accounts: 'Quote preparation',
+    po_for_review: 'Quote review',
+    po_for_approval: 'Quote submitted to client',
+    approved: 'Quote approved (Order created)',
   }
   return map[status] ?? status
 }

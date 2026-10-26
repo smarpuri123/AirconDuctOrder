@@ -1,4 +1,4 @@
-import { PHASE_LABELS } from '@/lib/activity'
+import { PHASE_LABELS, resolveActivityPhase } from '@/lib/activity'
 import { PORTAL_ROLE_LABELS } from '@/lib/stagePortalRoles'
 
 import { formatDate } from '@/lib/calculations'
@@ -14,6 +14,7 @@ const PHASE_COLORS: Record<ActivityPhase, string> = {
   enquiry: 'bg-blue-500',
 
   design: 'bg-violet-500',
+  accounts: 'bg-teal-500',
 
   order: 'bg-amber-500',
 
@@ -127,7 +128,7 @@ export function ActivityTimeline({ entries, groupByPhase = true, documents = [] 
 
         {entries.map((entry) => (
 
-          <ActivityRow key={entry.id} entry={entry} documents={documents} />
+          <ActivityRow key={entry.id} entry={{ ...entry, phase: resolveActivityPhase(entry.phase, entry.title) }} documents={documents} />
 
         ))}
 
@@ -139,7 +140,7 @@ export function ActivityTimeline({ entries, groupByPhase = true, documents = [] 
 
 
 
-  const phases: ActivityPhase[] = ['enquiry', 'design', 'order', 'production', 'dispatch']
+  const phases: ActivityPhase[] = ['enquiry', 'design', 'accounts', 'order', 'production', 'dispatch']
 
   const grouped = phases
 
@@ -147,7 +148,7 @@ export function ActivityTimeline({ entries, groupByPhase = true, documents = [] 
 
       phase,
 
-      items: entries.filter((e) => e.phase === phase),
+      items: entries.map((e) => ({ ...e, phase: resolveActivityPhase(e.phase, e.title) })).filter((e) => e.phase === phase),
 
     }))
 

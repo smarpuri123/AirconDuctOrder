@@ -2,14 +2,14 @@ import * as XLSX from 'xlsx'
 import type { Order } from '@/types'
 import { getOrderBalanceArea, getOrderBalanceQty, getOrderDispatchedArea, getOrderDispatchedQty } from './calculations'
 import { dispatchService } from '@/services/dispatchService'
-import { ductScheduleTemplateHeaderRow } from '@/lib/excelImport/canonicalTemplate'
+import { getConfiguredImportColumns } from '@/lib/excelImport/importColumnSettings'
 
 const DUCT_SCHEDULE_TEMPLATE_FILE = 'ECOVENT-duct-schedule-template.xlsx'
 const DUCT_SCHEDULE_TEMPLATE_SHEET = 'Duct schedule'
 
 /** Blank duct schedule with the exact columns required for design import. */
 export function exportDuctScheduleImportTemplate(): void {
-  const headers = ductScheduleTemplateHeaderRow()
+  const headers = getConfiguredImportColumns().map((c) => c.header)
   const ws = XLSX.utils.aoa_to_sheet([headers])
   ws['!cols'] = headers.map(() => ({ wch: 14 }))
   const wb = XLSX.utils.book_new()
@@ -44,7 +44,7 @@ export function exportDispatchWise(order: Order): void {
       Customer: d.customerName,
       Vehicle: d.vehicle.vehicleNumber,
       Date: d.dispatchDate,
-      Tag: item.tagNo,
+      Duct: item.tagNo,
       Dimensions: `${item.w1}x${item.h1}x${item.length}`,
       Qty: item.quantity,
       Area: item.area,

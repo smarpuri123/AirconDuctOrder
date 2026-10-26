@@ -20,6 +20,8 @@ import { getCurrentUser } from '@/lib/currentUser'
 import { getTodayISO } from '@/lib/calculations'
 import { enquiryService } from './enquiryService'
 import type { Enquiry } from '@/types/enquiry'
+import type { ProductionTrackAction } from '@/lib/productionTrack'
+import { getProductionTrackStatus } from '@/lib/productionTrack'
 import type { Order, OrderFilter, OrderItem } from '@/types'
 
 function getOrdersData(): Order[] {
@@ -225,6 +227,161 @@ export const orderService = {
     return order
   },
 
+  async updateProductionTrack(
+    orderId: string,
+    process: 'straight_ducts' | 'plasma_ducts',
+    action: ProductionTrackAction,
+    note?: string,
+  ): Promise<Order | undefined> {
+    if (isApiMode) {
+      const order = await api<Order>(`/orders/${orderId}/production-track`, {
+        method: 'POST',
+        body: JSON.stringify({ process, action, note }),
+      })
+      await refreshAll()
+      return order
+    }
+
+    const orders = getOrdersData()
+    const idx = orders.findIndex((o) => o.id === orderId)
+    if (idx === -1) return undefined
+    const user = getCurrentUser()
+    const now = new Date().toISOString()
+    const labels = { straight_ducts: 'Straight Ducts', plasma_ducts: 'Plasma Ducts' }
+
+    const pauseOthers = (target: Order, proc: 'straight_ducts' | 'plasma_ducts') => {
+      for (let i = 0; i < orders.length; i++) {
+        if (orders[i].id === target.id) continue
+        if (orders[i].status !== 'production') continue
+        const st = getProductionTrackStatus(orders[i], proc)
+        if (st !== 'running') continue
+        orders[i] = applyPause(orders[i], proc, now, user.name)
+      }
+    }
+
+    const applyPause = (o: Order, proc: 'straight_ducts' | 'plasma_ducts', at: string, actor: string) => {
+      const active = liveSeconds(o, proc, new Date(at))
+      const patch =
+        proc === 'straight_ducts'
+          ? {
+              straightDuctsStatus: 'paused' as const,
+              straightDuctsActiveSeconds: active,
+              straightDuctsRunStartedAt: undefined,
+            }
+          : {
+              plasmaDuctsStatus: 'paused' as const,
+              plasmaDuctsActiveSeconds: active,
+              plasmaDuctsRunStartedAt: undefined,
+            }
+      enquiryService.appendActivityByOrderId(o.id, {
+        phase: 'production',
+        title: `${labels[proc]} — paused`,
+        detail: `Auto-paused — another order took the line`,
+        actor,
+        actorRole: user.role,
+      })
+      return { ...o, ...patch }
+    }
+
+    const liveSeconds = (o: Order, proc: 'straight_ducts' | 'plasma_ducts', at: Date) => {
+      const base =
+        proc === 'straight_ducts' ? o.straightDuctsActiveSeconds ?? 0 : o.plasmaDuctsActiveSeconds ?? 0
+      const st = getProductionTrackStatus(o, proc)
+      if (st !== 'running') return base
+      const started =
+        proc === 'straight_ducts' ? o.straightDuctsRunStartedAt : o.plasmaDuctsRunStartedAt
+      if (!started) return base
+      return base + Math.max(0, Math.floor((at.getTime() - new Date(started).getTime()) / 1000))
+    }
+
+    let order = { ...orders[idx] }
+    if (order.status !== 'production') {
+      throw new Error('Order must be in production to update shop-floor tracks')
+    }
+
+    const status = getProductionTrackStatus(order, process)
+    const log = (title: string, detail: string) => {
+      enquiryService.appendActivityByOrderId(orderId, {
+        phase: 'production',
+        title,
+        detail: note ?? detail,
+        actor: user.name,
+        actorRole: user.role,
+        metadata: { productionProcess: process, productionTrackAction: action },
+      })
+    }
+
+    if (action === 'start') {
+      if (status !== 'not_started') throw new Error('Use resume to continue this line')
+      pauseOthers(order, process)
+      order = {
+        ...order,
+        productionApproved: true,
+        productionApprovedBy: order.productionApprovedBy ?? user.name,
+        productionApprovedDate: order.productionApprovedDate ?? now.split('T')[0],
+        ...(process === 'straight_ducts'
+          ? { straightDuctsStatus: 'running', straightDuctsRunStartedAt: now }
+          : { plasmaDuctsStatus: 'running', plasmaDuctsRunStartedAt: now }),
+      }
+      log(`${labels[process]} — started`, `Shop floor timer started by ${user.name}`)
+    } else if (action === 'resume') {
+      if (status !== 'paused') throw new Error('Start this line before resuming')
+      pauseOthers(order, process)
+      order = {
+        ...order,
+        ...(process === 'straight_ducts'
+          ? { straightDuctsStatus: 'running', straightDuctsRunStartedAt: now }
+          : { plasmaDuctsStatus: 'running', plasmaDuctsRunStartedAt: now }),
+      }
+      log(`${labels[process]} — resumed`, `Resumed by ${user.name}`)
+    } else if (action === 'pause') {
+      if (status !== 'running') throw new Error('This line is not running')
+      const active = liveSeconds(order, process, new Date())
+      order = {
+        ...order,
+        ...(process === 'straight_ducts'
+          ? {
+              straightDuctsStatus: 'paused',
+              straightDuctsActiveSeconds: active,
+              straightDuctsRunStartedAt: undefined,
+            }
+          : {
+              plasmaDuctsStatus: 'paused',
+              plasmaDuctsActiveSeconds: active,
+              plasmaDuctsRunStartedAt: undefined,
+            }),
+      }
+      log(`${labels[process]} — paused`, `Paused by ${user.name}`)
+    } else if (action === 'complete') {
+      const active = liveSeconds(order, process, new Date())
+      order = {
+        ...order,
+        ...(process === 'straight_ducts'
+          ? {
+              straightDuctsStatus: 'completed',
+              straightDuctsActiveSeconds: active,
+              straightDuctsRunStartedAt: undefined,
+              straightDuctsCompleted: true,
+              straightDuctsCompletedAt: now,
+              straightDuctsCompletedBy: user.name,
+            }
+          : {
+              plasmaDuctsStatus: 'completed',
+              plasmaDuctsActiveSeconds: active,
+              plasmaDuctsRunStartedAt: undefined,
+              plasmaDuctsCompleted: true,
+              plasmaDuctsCompletedAt: now,
+              plasmaDuctsCompletedBy: user.name,
+            }),
+      }
+      log(`${labels[process]} — complete`, `Marked by ${user.name}`)
+    }
+
+    orders[idx] = order
+    persistOrders(orders)
+    return order
+  },
+
   async approveProductionStart(orderId: string): Promise<Order | undefined> {
     if (isApiMode) {
       const order = await api<Order>(`/orders/${orderId}/approve-production`, { method: 'POST' })
@@ -269,40 +426,7 @@ export const orderService = {
       await refreshAll()
       return order
     }
-    const orders = getOrdersData()
-    const idx = orders.findIndex((o) => o.id === orderId)
-    if (idx === -1) return undefined
-
-    const order = { ...orders[idx] }
-    const user = getCurrentUser()
-    const now = new Date().toISOString()
-    const labels = { straight_ducts: 'Straight Ducts', plasma_ducts: 'Plasma Ducts' }
-
-    if (process === 'straight_ducts') {
-      if (order.straightDuctsCompleted) return order
-      order.straightDuctsCompleted = true
-      order.straightDuctsCompletedAt = now
-      order.straightDuctsCompletedBy = user.name
-    } else {
-      if (order.plasmaDuctsCompleted) return order
-      order.plasmaDuctsCompleted = true
-      order.plasmaDuctsCompletedAt = now
-      order.plasmaDuctsCompletedBy = user.name
-    }
-
-    orders[idx] = order
-    persistOrders(orders)
-
-    enquiryService.appendActivityByOrderId(orderId, {
-      phase: 'production',
-      title: `${labels[process]} — complete`,
-      detail: `Marked by ${user.name}`,
-      actor: user.name,
-      actorRole: user.role,
-      metadata: { productionProcess: process },
-    })
-
-    return order
+    return orderService.updateProductionTrack(orderId, process, 'complete')
   },
 
   async markProductionReady(orderId: string): Promise<Order | undefined> {

@@ -185,7 +185,7 @@ type DesignExtractionPayload = {
 }
 
 function designExtractionDetail(data: DesignExtractionPayload): string {
-  return `${data.ductTags} tags · ${data.totalQty} qty · ${data.totalArea} m²`
+  return `${data.ductTags} ducts · ${data.totalQty} qty · ${data.totalArea} m²`
 }
 
 function normalizeDesignNotes(notes?: string | null): string {
@@ -393,7 +393,7 @@ export async function attachEnquiryInputFiles(
 
   const revision = inputRevision ?? (await nextInputRevision(enquiryId))
   await prisma.enquiryDocument.updateMany({
-    where: { enquiryId, isCurrent: true },
+    where: { enquiryId, isCurrent: true, category: 'drawing' },
     data: { isCurrent: false },
   })
 
@@ -575,13 +575,22 @@ export async function assignDesignInCharge(
   const handoffRoleLabel = await jobRoleLabel(handoff.assigneeRoleCode)
   const inDesignQueue =
     enquiry.designStatus === 'PENDING' || enquiry.designStatus === 'REVISION_NEEDED'
+  const roleCode = handoff.assigneeRoleCode ?? null
+  const alreadyAssigned =
+    enquiry.currentAssigneeId === assignee.id &&
+    (enquiry.currentAssigneeRoleCode ?? null) === roleCode &&
+    enquiry.status === 'DESIGN_REVIEW'
+
+  if (alreadyAssigned) {
+    return getEnquiryById(id)
+  }
 
   await prisma.enquiry.update({
     where: { id },
     data: {
       status: 'DESIGN_REVIEW',
       currentAssigneeId: assignee.id,
-      currentAssigneeRoleCode: handoff.assigneeRoleCode ?? null,
+      currentAssigneeRoleCode: roleCode,
       ...(inDesignQueue ? {} : { designStatus: enquiry.designStatus }),
     },
   })
@@ -589,9 +598,11 @@ export async function assignDesignInCharge(
   const fromName =
     (await employeeDisplayName(enquiry.personInChargeId)) ?? enquiry.salesPerson?.trim() ?? '—'
 
-  const title = inDesignQueue
-    ? `Assigned to design in-charge — ${formatRevision(enquiry.designRevision)}`
-    : `Design in-charge updated — ${formatRevision(enquiry.designRevision)}`
+  const isReassignment = Boolean(enquiry.currentAssigneeId)
+  const title =
+    !inDesignQueue || isReassignment
+      ? `Design in-charge updated — ${formatRevision(enquiry.designRevision)}`
+      : `Assigned to design in-charge — ${formatRevision(enquiry.designRevision)}`
 
   await logActivity(id, {
     phase: 'design',
@@ -804,6 +815,9 @@ export async function saveDuctScheduleImport(
     })
 
     if (savedExcel) {
+      const scheduleCount = await tx.enquiryDocument.count({
+        where: { enquiryId: id, category: 'duct_schedule' },
+      })
       const doc = await tx.enquiryDocument.create({
         data: {
           enquiryId: id,
@@ -811,7 +825,7 @@ export async function saveDuctScheduleImport(
           filePath: savedExcel.filePath,
           mimeType: savedExcel.mimeType,
           fileSize: savedExcel.fileSize,
-          inputRevision: 0,
+          inputRevision: scheduleCount + 1,
           isCurrent: true,
           category: 'duct_schedule',
         },
@@ -866,6 +880,102 @@ async function hasImportedDuctSchedule(enquiryId: string): Promise<boolean> {
   return lineCount > 0
 }
 
+export async function uploadDesignOutputDocuments(
+  enquiryId: string,
+  files: IncomingEnquiryFile[],
+  actor: ActivityActor,
+) {
+  if (!files.length) return getEnquiryById(enquiryId)
+  const enquiry = await prisma.enquiry.findUnique({ where: { id: enquiryId } })
+  if (!enquiry) return null
+
+  const existingCount = await prisma.enquiryDocument.count({
+    where: { enquiryId, category: 'design_output' },
+  })
+  const rev = existingCount + 1
+
+  const createdIds: string[] = []
+  const names: string[] = []
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i]
+    const { filePath, fileSize } = await saveEnquiryFile(enquiryId, file)
+    const doc = await prisma.enquiryDocument.create({
+      data: {
+        enquiryId,
+        fileName: file.fileName,
+        filePath,
+        mimeType: file.mimeType,
+        fileSize,
+        inputRevision: rev + i,
+        isCurrent: true,
+        category: 'design_output',
+      },
+    })
+    createdIds.push(doc.id)
+    names.push(file.fileName)
+  }
+
+  await logActivity(enquiryId, {
+    phase: 'design',
+    title: `Client design files uploaded — ${formatRevision(rev)}`,
+    detail: names.join(', '),
+    actor: actor.name,
+    actorRole: actor.role,
+    revision: enquiry.designRevision,
+    metadata: { documentIds: createdIds },
+  })
+
+  return getEnquiryById(enquiryId)
+}
+
+export async function uploadQuotationDocuments(
+  enquiryId: string,
+  files: IncomingEnquiryFile[],
+  actor: ActivityActor,
+) {
+  if (!files.length) return getEnquiryById(enquiryId)
+  const enquiry = await prisma.enquiry.findUnique({ where: { id: enquiryId } })
+  if (!enquiry) return null
+
+  const existingCount = await prisma.enquiryDocument.count({
+    where: { enquiryId, category: 'quotation' },
+  })
+  const rev = existingCount + 1
+
+  const createdIds: string[] = []
+  const names: string[] = []
+  for (let i = 0; i < files.length; i++) {
+    const file = files[i]
+    const { filePath, fileSize } = await saveEnquiryFile(enquiryId, file)
+    const doc = await prisma.enquiryDocument.create({
+      data: {
+        enquiryId,
+        fileName: file.fileName,
+        filePath,
+        mimeType: file.mimeType,
+        fileSize,
+        inputRevision: rev + i,
+        isCurrent: true,
+        category: 'quotation',
+      },
+    })
+    createdIds.push(doc.id)
+    names.push(file.fileName)
+  }
+
+  await logActivity(enquiryId, {
+    phase: 'accounts',
+    title: `Quote document uploaded — ${formatRevision(rev)}`,
+    detail: names.join(', '),
+    actor: actor.name,
+    actorRole: actor.role,
+    revision: enquiry.designRevision,
+    metadata: { documentIds: createdIds },
+  })
+
+  return getEnquiryById(enquiryId)
+}
+
 export async function submitDesignToAccounts(id: string, actor: ActivityActor) {
   const enquiry = await prisma.enquiry.findUnique({ where: { id } })
   if (!enquiry || enquiry.designStatus !== 'IN_REVIEW') return null
@@ -882,7 +992,7 @@ export async function submitDesignToAccounts(id: string, actor: ActivityActor) {
   await logActivity(id, {
     phase: 'design',
     title: `Submitted to accounts — ${formatRevision(enquiry.designRevision)}`,
-    detail: 'Duct extraction sent for PO preparation (offline)',
+    detail: 'Duct extraction sent for Quote preparation',
     actor: actor.name,
     actorRole: actor.role,
     revision: enquiry.designRevision,
@@ -892,9 +1002,42 @@ export async function submitDesignToAccounts(id: string, actor: ActivityActor) {
   return getEnquiryById(id)
 }
 
-export async function markPoForReview(id: string, actor: ActivityActor) {
+export async function markPoForReview(
+  id: string,
+  actor: ActivityActor,
+  files?: IncomingEnquiryFile[],
+) {
   const enquiry = await prisma.enquiry.findUnique({ where: { id } })
   if (!enquiry || enquiry.designStatus !== 'SUBMITTED_TO_ACCOUNTS') return null
+
+  const createdIds: string[] = []
+  const fileNames: string[] = []
+  if (files && files.length > 0) {
+    for (const file of files) {
+      const { filePath, fileSize } = await saveEnquiryFile(id, file)
+      const doc = await prisma.enquiryDocument.create({
+        data: {
+          enquiryId: id,
+          fileName: file.fileName,
+          filePath,
+          mimeType: file.mimeType,
+          fileSize,
+          inputRevision: enquiry.designRevision,
+          isCurrent: true,
+          category: 'quotation',
+        },
+      })
+      createdIds.push(doc.id)
+      fileNames.push(file.fileName)
+    }
+  }
+
+  const quoteDocCount = await prisma.enquiryDocument.count({
+    where: { enquiryId: id, category: 'quotation' },
+  })
+  if (quoteDocCount === 0) {
+    throw new Error('Upload a Quote document (PDF or Excel) before submitting for quote review')
+  }
 
   const moved = await transitionEnquiryDesignStatus(id, ['SUBMITTED_TO_ACCOUNTS'], {
     designStatus: 'PO_FOR_REVIEW',
@@ -902,12 +1045,13 @@ export async function markPoForReview(id: string, actor: ActivityActor) {
   if (!moved) return null
 
   await logActivity(id, {
-    phase: 'design',
-    title: `PO sent for review — ${formatRevision(enquiry.designRevision)}`,
-    detail: 'Accounts initiated client PO communication',
+    phase: 'accounts',
+    title: `Quote submitted for review — ${formatRevision(enquiry.designRevision)}`,
+    detail: fileNames.length > 0 ? fileNames.join(', ') : 'Quote prepared and sent for review',
     actor: actor.name,
     actorRole: actor.role,
     revision: enquiry.designRevision,
+    metadata: createdIds.length > 0 ? { documentIds: createdIds } : undefined,
   })
 
   return getEnquiryById(id)
@@ -923,9 +1067,9 @@ export async function markPoForApproval(id: string, actor: ActivityActor) {
   if (!moved) return null
 
   await logActivity(id, {
-    phase: 'design',
-    title: `PO pending approval — ${formatRevision(enquiry.designRevision)}`,
-    detail: 'Awaiting final PO approval',
+    phase: 'accounts',
+    title: `Quote approved for client submission — ${formatRevision(enquiry.designRevision)}`,
+    detail: 'Quote reviewed and approved for submission to client',
     actor: actor.name,
     actorRole: actor.role,
     revision: enquiry.designRevision,
@@ -947,15 +1091,15 @@ export async function approveDesign(id: string, actor: ActivityActor) {
   if (!moved) return null
 
   await logActivity(id, {
-    phase: 'design',
-    title: `PO approved — ${formatRevision(enquiry.designRevision)}`,
-    detail: 'Ready for order conversion',
+    phase: 'accounts',
+    title: `Quote approved by client — ${formatRevision(enquiry.designRevision)}`,
+    detail: 'Client approved quote — order created directly',
     actor: actor.name,
     actorRole: actor.role,
     revision: enquiry.designRevision,
   })
 
-  return getEnquiryById(id)
+  return convertToOrder(id, actor)
 }
 
 export async function requestDesignRevision(id: string, reason: string, actor: ActivityActor) {
@@ -1013,7 +1157,7 @@ export async function revertDesignWorkflowStep(id: string, reason: string, actor
   if (!moved) return null
 
   await logActivity(id, {
-    phase: 'design',
+    phase: 'accounts',
     title: 'Workflow step back',
     detail:
       reason.trim() ||

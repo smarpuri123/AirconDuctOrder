@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { MasterDataPanel } from '@/components/settings/MasterDataPanel'
+import { DuctScheduleImportColumnsPanel } from '@/components/settings/DuctScheduleImportColumnsPanel'
 import { NotificationPreferences } from '@/components/notifications/NotificationPreferences'
 import { OrganizationPanel } from '@/components/settings/OrganizationPanel'
 import { UserManagementPanel } from '@/components/settings/UserManagementPanel'
@@ -44,6 +45,15 @@ export function SettingsPage() {
           Departments, internal job roles, and employees assigned to workflow stages.
         </p>
         <OrganizationPanel />
+      </Card>
+
+      <Card>
+        <h3 className="font-semibold mb-2">Duct schedule import</h3>
+        <p className="text-sm text-text-secondary mb-4">
+          Shop-drawing profile: W1–H2 inputs, calculated billable SFT, 24G/22G/20G columns, and footer pivot
+          totals. Simple template keeps the original single width/height layout.
+        </p>
+        <DuctScheduleImportColumnsPanel />
       </Card>
 
       <Card>

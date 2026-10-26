@@ -1,10 +1,32 @@
 import type { Dispatch, Order } from '@/types'
-import { formatDate } from './calculations'
-import { getOrderBalanceQty, getOrderDispatchedQty } from './calculations'
+import { formatDate, getOrderBalanceQty, getOrderDispatchedQty } from './calculations'
+import { resolveDispatchAccessories } from './dispatchAccessories'
+import { enquiryService } from '@/services/enquiryService'
+
+function getIncludedAccessoryRows(dispatch: Dispatch, order: Order) {
+  const enquiry = enquiryService.getEnquiryByOrderId(order.id)
+  const acc = resolveDispatchAccessories(dispatch, order, enquiry?.ductLines)
+  const rows: { label: string; quantity: number; units: string }[] = []
+  if (acc.corner.included) {
+    rows.push({ label: 'CORNNER', quantity: acc.corner.quantity, units: 'NOS' })
+  }
+  if (acc.nBolt.included) {
+    rows.push({ label: 'N/BOLT', quantity: acc.nBolt.quantity, units: 'NOS' })
+  }
+  if (acc.cleat.included) {
+    rows.push({ label: 'CLEAT', quantity: acc.cleat.quantity, units: 'NOS' })
+  }
+  return { mode: acc.mode, rows }
+}
 
 export function generateWhatsAppMessage(dispatch: Dispatch, order: Order): string {
   const totalDispatched = getOrderDispatchedQty(order)
   const balance = getOrderBalanceQty(order)
+  const { rows } = getIncludedAccessoryRows(dispatch, order)
+  const accLines =
+    rows.length > 0
+      ? `\nAccessories Included:\n${rows.map((r) => `✓ ${r.label}: ${r.quantity} ${r.units}`).join('\n')}\n`
+      : ''
 
   return `Dispatch Update
 
@@ -14,7 +36,7 @@ Dispatch No: ${dispatch.dispatchNo}
 Vehicle: ${dispatch.vehicle.vehicleNumber}
 Quantity: ${dispatch.totalQuantity}
 Area: ${dispatch.totalArea.toFixed(2)} Sq.m
-
+${accLines}
 Total dispatched: ${totalDispatched} / ${order.totalQuantity}
 Balance: ${balance}
 
@@ -28,9 +50,17 @@ export function shareWhatsApp(message: string): void {
   window.open(url, '_blank')
 }
 
-export function generateEmailContent(dispatch: Dispatch, order: Order): { subject: string; body: string } {
+export function generateEmailContent(
+  dispatch: Dispatch,
+  order: Order,
+): { subject: string; body: string } {
   const totalDispatched = getOrderDispatchedQty(order)
   const balance = getOrderBalanceQty(order)
+  const { rows } = getIncludedAccessoryRows(dispatch, order)
+  const accLines =
+    rows.length > 0
+      ? `\nAccessories Included:\n${rows.map((r) => `- ${r.label}: ${r.quantity} ${r.units}`).join('\n')}\n`
+      : ''
 
   return {
     subject: `Dispatch Update – ${order.orderNo} – ${dispatch.dispatchNo}`,
@@ -43,7 +73,7 @@ Dispatch: ${dispatch.dispatchNo}
 Vehicle: ${dispatch.vehicle.vehicleNumber}
 Quantity: ${dispatch.totalQuantity}
 Area: ${dispatch.totalArea.toFixed(2)} Sq.m
-
+${accLines}
 Total Dispatched: ${totalDispatched}
 Balance: ${balance}
 
@@ -63,6 +93,7 @@ export async function generateDispatchPDF(dispatch: Dispatch, order: Order): Pro
   const doc = new jsPDF()
   const totalDispatched = getOrderDispatchedQty(order)
   const balance = getOrderBalanceQty(order)
+  const { rows: accRows } = getIncludedAccessoryRows(dispatch, order)
 
   doc.setFontSize(18)
   doc.setTextColor(0, 48, 135)
@@ -107,13 +138,27 @@ export async function generateDispatchPDF(dispatch: Dispatch, order: Order): Pro
 
   ;(doc as unknown as { autoTable: (opts: object) => void }).autoTable({
     startY: y + 5,
-    head: [['Tag', 'Desc', 'W1', 'H1', 'W2', 'H2', 'L', 'Qty', 'Area']],
+    head: [['Duct', 'Desc', 'W1', 'H1', 'W2', 'H2', 'L', 'Qty', 'Area']],
     body: tableData,
     styles: { fontSize: 8 },
     headStyles: { fillColor: [0, 48, 135] },
   })
 
-  const finalY = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10
+  let finalY =
+    (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8
+
+  if (accRows.length > 0) {
+    ;(doc as unknown as { autoTable: (opts: object) => void }).autoTable({
+      startY: finalY,
+      head: [['Accessory Included', 'Qty', 'Units']],
+      body: accRows.map((r) => [r.label, r.quantity, r.units]),
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [0, 152, 136] },
+    })
+    finalY =
+      (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10
+  }
+
   doc.setFontSize(10)
   doc.text(`Current Dispatch Qty: ${dispatch.totalQuantity}`, 14, finalY)
   doc.text(`Current Dispatch Area: ${dispatch.totalArea.toFixed(2)} m²`, 14, finalY + 7)

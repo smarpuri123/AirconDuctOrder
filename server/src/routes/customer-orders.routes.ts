@@ -9,6 +9,7 @@ import {
   completeProductionProcess,
   markProductionReady,
   revertOrderWorkflowStep,
+  updateProductionTrack,
 } from '../services/customer-order.service.js'
 import { getEnquiryByOrderId } from '../services/enquiry.service.js'
 
@@ -45,6 +46,35 @@ export async function customerOrderRoutes(app: FastifyInstance) {
       const order = await approveProductionStart(id, activityActorFromRequest(request))
       if (!order) return reply.code(404).send({ error: 'Order not found' })
       return mapOrderToFrontend(order)
+    },
+  )
+
+  app.post(
+    '/orders/:id/production-track',
+    { preHandler: [app.authenticate, app.authorize(PERMISSIONS.MANUFACTURING_WRITE)] },
+    async (request, reply) => {
+      const { id } = request.params as { id: string }
+      const body = z
+        .object({
+          process: z.enum(['straight_ducts', 'plasma_ducts']),
+          action: z.enum(['start', 'pause', 'resume', 'complete']),
+          note: z.string().optional(),
+        })
+        .parse(request.body)
+      try {
+        const order = await updateProductionTrack(
+          id,
+          body.process,
+          body.action,
+          activityActorFromRequest(request),
+          body.note,
+        )
+        if (!order) return reply.code(404).send({ error: 'Order not found' })
+        return mapOrderToFrontend(order)
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to update production track'
+        return reply.code(400).send({ error: message })
+      }
     },
   )
 

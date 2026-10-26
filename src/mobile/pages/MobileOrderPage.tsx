@@ -5,6 +5,7 @@ import { orderService } from '@/services/orderService'
 import { dispatchService } from '@/services/dispatchService'
 import { getOrderBalanceQty, getOrderDispatchedQty, formatDate } from '@/lib/calculations'
 import { DispatchStatusChip } from '@/components/ui/Chip'
+import { useAppStore } from '@/store/appStore'
 
 export function MobileOrderPage() {
   const { id } = useParams<{ id: string }>()
@@ -54,7 +55,10 @@ export function MobileOrderPage() {
       {canDispatch && (
         <button
           type="button"
-          onClick={() => navigate(`/m/orders/${order.id}/dispatch`)}
+          onClick={() => {
+            useAppStore.getState().setDispatchDraft(null)
+            navigate(`/m/orders/${order.id}/dispatch`)
+          }}
           className="w-full min-h-16 rounded-xl bg-primary text-white font-bold text-lg flex items-center justify-center gap-3 active:opacity-90 touch-manipulation shadow-level-2"
         >
           <Truck className="w-6 h-6" />

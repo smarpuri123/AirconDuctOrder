@@ -9,7 +9,7 @@ export interface CanonicalColumn {
 
 /** Column names users must use (download template). Order matches export file. */
 export const DUCT_SCHEDULE_CANONICAL_COLUMNS: CanonicalColumn[] = [
-  { fieldKey: 'tagNo', header: 'Tag No', required: true },
+  { fieldKey: 'tagNo', header: 'Duct No', required: true },
   { fieldKey: 'description', header: 'Description', required: false },
   { fieldKey: 'dai', header: 'Diameter (DAI)', required: false },
   { fieldKey: 'width', header: 'Width (mm)', required: true },

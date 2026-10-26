@@ -7,6 +7,8 @@ const API_BASE = import.meta.env.VITE_API_URL ?? '/api'
 export const ENQUIRY_FILE_ACCEPT =
   '.pdf,.dwg,.dxf,.dwt,.zip,.rar,.7z,.png,.jpg,.jpeg,.tif,.tiff,.doc,.docx,.xls,.xlsx,.csv'
 
+export const QUOTATION_FILE_ACCEPT = '.pdf,.xls,.xlsx,.csv'
+
 const BLOB_STORAGE_KEY = 'enquiryFileBlobs' as const
 
 type BlobStore = Record<string, { fileName: string; mimeType: string; dataBase64: string }>
@@ -136,11 +138,30 @@ function guessMime(fileName: string): string {
     jpg: 'image/jpeg',
     jpeg: 'image/jpeg',
     zip: 'application/zip',
+    xls: 'application/vnd.ms-excel',
+    xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    csv: 'text/csv',
   }
   return map[ext ?? ''] ?? 'application/octet-stream'
 }
 
 export async function downloadEnquiryDocument(doc: EnquiryDesignDocument): Promise<void> {
+  const localBlob = getLocalEnquiryFileBlob(doc.id)
+  if (localBlob) {
+    const byteCharacters = atob(localBlob.dataBase64)
+    const byteNumbers = new Array(byteCharacters.length)
+    for (let i = 0; i < byteCharacters.length; i++) {
+      byteNumbers[i] = byteCharacters.charCodeAt(i)
+    }
+    const blob = new Blob([new Uint8Array(byteNumbers)], { type: localBlob.mimeType })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = doc.fileName || localBlob.fileName
+    a.click()
+    URL.revokeObjectURL(url)
+    return
+  }
   const token = getToken()
   const res = await fetch(
     `${API_BASE}/enquiries/${doc.enquiryId}/documents/${doc.id}/download`,

@@ -71,10 +71,14 @@ function normalizeDesignReview(dr: DesignReview): DesignReview {
 function normalizeEnquiry(e: Enquiry): Enquiry {
   const designDocuments = e.designDocuments ?? []
   const ductScheduleDocuments = e.ductScheduleDocuments ?? []
+  const designOutputDocuments = e.designOutputDocuments ?? []
+  const quotationDocuments = e.quotationDocuments ?? []
   return {
     ...e,
     designDocuments,
     ductScheduleDocuments,
+    designOutputDocuments,
+    quotationDocuments,
     ductLines: e.ductLines ?? [],
     currentDesignDocuments:
       e.currentDesignDocuments ?? designDocuments.filter((d) => d.isCurrent),
@@ -340,16 +344,27 @@ export const enquiryService = {
     const assignee = orgService.getEmployeeById(handoff.assigneeId)
     if (!assignee) throw new Error('Assignee not found')
 
+    const roleCode = handoff.assigneeRoleCode ?? assignee.jobRoles[0]?.code ?? null
+    if (
+      enquiry.currentAssigneeId === assignee.id &&
+      (enquiry.currentAssigneeRoleCode ?? null) === roleCode &&
+      enquiry.stage === 'design_review'
+    ) {
+      return enquiry
+    }
+
     const fromName = enquiry.currentAssigneeName ?? enquiry.personInChargeName ?? enquiry.salesPerson
+    const isReassignment = Boolean(enquiry.currentAssigneeId)
     enquiry.stage = 'design_review'
     enquiry.designReview = { ...enquiry.designReview, status: 'pending' }
     enquiry.currentAssigneeId = assignee.id
     enquiry.currentAssigneeName = assignee.name
-    enquiry.currentAssigneeRoleCode = handoff.assigneeRoleCode ?? assignee.jobRoles[0]?.code ?? null
-
+    enquiry.currentAssigneeRoleCode = roleCode
     addActivityAsCurrentUser(enquiry, {
       phase: 'design',
-      title: `Assigned to design in-charge — ${formatRevision(enquiry.designReview.revision)}`,
+      title: isReassignment
+        ? `Design in-charge updated — ${formatRevision(enquiry.designReview.revision)}`
+        : `Assigned to design in-charge — ${formatRevision(enquiry.designReview.revision)}`,
       detail: `Handoff: ${fromName ?? '—'} → ${assignee.name}${handoff.assigneeRoleCode ? ` (${handoff.assigneeRoleCode})` : ''}`,
       metadata: { assigneeId: assignee.id, assigneeRoleCode: handoff.assigneeRoleCode },
     })
@@ -413,13 +428,14 @@ export const enquiryService = {
     if (data.excelFile) {
       const docId = `doc-duct-${Date.now()}`
       ductDocId = docId
+      const nextRev = (enquiry.ductScheduleDocuments?.length ?? 0) + 1
       const doc: EnquiryDesignDocument = {
         id: docId,
         enquiryId: id,
         fileName: data.excelFile.fileName,
         mimeType: data.excelFile.mimeType,
         fileSize: null,
-        inputRevision: 0,
+        inputRevision: nextRev,
         isCurrent: true,
         category: 'duct_schedule',
         uploadedAt: new Date().toISOString(),
@@ -431,7 +447,7 @@ export const enquiryService = {
     addActivityAsCurrentUser(enquiry, {
       phase: 'design',
       title: `Duct schedule imported — ${formatRevision(enquiry.designReview.revision)}`,
-      detail: `${data.ductTags} tags · ${data.totalQty} qty · ${data.totalArea} m²`,
+      detail: `${data.ductTags} ducts · ${data.totalQty} qty · ${data.totalArea} m²`,
       revision: enquiry.designReview.revision,
       metadata: ductDocId
         ? { documentIds: [ductDocId], excelFileName: data.excelFile?.fileName }
@@ -478,8 +494,102 @@ export const enquiryService = {
     addActivityAsCurrentUser(enquiry, {
       phase: 'design',
       title: `Design updated — ${formatRevision(revision)}`,
-      detail: `${data.ductTags} tags · ${data.totalQty} qty · ${data.totalArea} m²`,
+      detail: `${data.ductTags} ducts · ${data.totalQty} qty · ${data.totalArea} m²`,
       revision,
+    })
+    enquiries[idx] = enquiry
+    persist(enquiries)
+    return enquiry
+  },
+
+  async uploadDesignOutputFiles(
+    enquiryId: string,
+    files: EnquiryFilePayload[],
+  ): Promise<Enquiry | undefined> {
+    if (isApiMode) {
+      return apiEnquiry<Enquiry>(`/enquiries/${enquiryId}/design/output-documents`, 'POST', {
+        files,
+      })
+    }
+    const enquiries = getEnquiriesData()
+    const idx = enquiries.findIndex((e) => e.id === enquiryId)
+    if (idx === -1) return undefined
+    const enquiry = enquiries[idx]
+    const baseRev = (enquiry.designOutputDocuments?.length ?? 0) + 1
+    const createdIds: string[] = []
+    const names: string[] = []
+    const newDocs: EnquiryDesignDocument[] = files.map((file, i) => {
+      const docId = `doc-desout-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+      storeLocalEnquiryFileBlob(docId, file)
+      createdIds.push(docId)
+      names.push(file.fileName)
+      const size = Math.floor((file.dataBase64.length * 3) / 4)
+      return {
+        id: docId,
+        enquiryId,
+        fileName: file.fileName,
+        mimeType: file.mimeType,
+        fileSize: size,
+        inputRevision: baseRev + i,
+        isCurrent: true,
+        category: 'design_output',
+        uploadedAt: new Date().toISOString(),
+      }
+    })
+    enquiry.designOutputDocuments = [...newDocs, ...(enquiry.designOutputDocuments ?? [])]
+    addActivityAsCurrentUser(enquiry, {
+      phase: 'design',
+      title: `Client design files uploaded — ${formatRevision(baseRev)}`,
+      detail: names.join(', '),
+      revision: enquiry.designReview.revision,
+      metadata: { documentIds: createdIds },
+    })
+    enquiries[idx] = enquiry
+    persist(enquiries)
+    return enquiry
+  },
+
+  async uploadQuotationFiles(
+    enquiryId: string,
+    files: EnquiryFilePayload[],
+  ): Promise<Enquiry | undefined> {
+    if (isApiMode) {
+      return apiEnquiry<Enquiry>(`/enquiries/${enquiryId}/design/quotation-documents`, 'POST', {
+        files,
+      })
+    }
+    const enquiries = getEnquiriesData()
+    const idx = enquiries.findIndex((e) => e.id === enquiryId)
+    if (idx === -1) return undefined
+    const enquiry = enquiries[idx]
+    const baseRev = (enquiry.quotationDocuments?.length ?? 0) + 1
+    const createdIds: string[] = []
+    const names: string[] = []
+    const newDocs: EnquiryDesignDocument[] = files.map((file, i) => {
+      const docId = `doc-quote-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+      storeLocalEnquiryFileBlob(docId, file)
+      createdIds.push(docId)
+      names.push(file.fileName)
+      const size = Math.floor((file.dataBase64.length * 3) / 4)
+      return {
+        id: docId,
+        enquiryId,
+        fileName: file.fileName,
+        mimeType: file.mimeType,
+        fileSize: size,
+        inputRevision: baseRev + i,
+        isCurrent: true,
+        category: 'quotation',
+        uploadedAt: new Date().toISOString(),
+      }
+    })
+    enquiry.quotationDocuments = [...newDocs, ...(enquiry.quotationDocuments ?? [])]
+    addActivityAsCurrentUser(enquiry, {
+      phase: 'accounts',
+      title: `Quote document uploaded — ${formatRevision(baseRev)}`,
+      detail: names.join(', '),
+      revision: enquiry.designReview.revision,
+      metadata: { documentIds: createdIds },
     })
     enquiries[idx] = enquiry
     persist(enquiries)
@@ -503,7 +613,7 @@ export const enquiryService = {
     addActivityAsCurrentUser(enquiry, {
       phase: 'design',
       title: `Submitted to accounts — ${formatRevision(revision)}`,
-      detail: 'Duct extraction sent for PO preparation (offline)',
+      detail: 'Duct extraction sent for Quote preparation',
       revision,
       metadata: ductDoc ? { documentIds: [ductDoc.id] } : undefined,
     })
@@ -512,9 +622,9 @@ export const enquiryService = {
     return enquiry
   },
 
-  async markPoForReview(id: string): Promise<Enquiry | undefined> {
+  async markPoForReview(id: string, files?: EnquiryFilePayload[]): Promise<Enquiry | undefined> {
     if (isApiMode) {
-      return apiEnquiry<Enquiry>(`/enquiries/${id}/design/po-for-review`, 'POST')
+      return apiEnquiry<Enquiry>(`/enquiries/${id}/design/po-for-review`, 'POST', { files })
     }
     const enquiries = getEnquiriesData()
     const idx = enquiries.findIndex((e) => e.id === id)
@@ -522,12 +632,42 @@ export const enquiryService = {
     const enquiry = enquiries[idx]
     if (enquiry.designReview.status !== 'submitted_to_accounts') return undefined
     const revision = enquiry.designReview.revision
+
+    const createdIds: string[] = []
+    const fileNames: string[] = []
+    if (files && files.length > 0) {
+      const newDocs: EnquiryDesignDocument[] = files.map((file) => {
+        const docId = `doc-quote-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+        storeLocalEnquiryFileBlob(docId, file)
+        createdIds.push(docId)
+        fileNames.push(file.fileName)
+        const size = Math.floor((file.dataBase64.length * 3) / 4)
+        return {
+          id: docId,
+          enquiryId: id,
+          fileName: file.fileName,
+          mimeType: file.mimeType,
+          fileSize: size,
+          inputRevision: revision,
+          isCurrent: true,
+          category: 'quotation',
+          uploadedAt: new Date().toISOString(),
+        }
+      })
+      enquiry.quotationDocuments = [...newDocs, ...(enquiry.quotationDocuments ?? [])]
+    }
+
+    if (!(enquiry.quotationDocuments?.length ?? 0)) {
+      throw new Error('Upload a Quote document (PDF or Excel) before submitting for quote review')
+    }
+
     enquiry.designReview = { ...enquiry.designReview, status: 'po_for_review' }
     addActivityAsCurrentUser(enquiry, {
-      phase: 'design',
-      title: `PO sent for review — ${formatRevision(revision)}`,
-      detail: 'Accounts initiated client PO communication',
+      phase: 'accounts',
+      title: `Quote submitted for review — ${formatRevision(revision)}`,
+      detail: fileNames.length > 0 ? fileNames.join(', ') : 'Quote prepared and sent for review',
       revision,
+      metadata: createdIds.length > 0 ? { documentIds: createdIds } : undefined,
     })
     enquiries[idx] = enquiry
     persist(enquiries)
@@ -546,9 +686,9 @@ export const enquiryService = {
     const revision = enquiry.designReview.revision
     enquiry.designReview = { ...enquiry.designReview, status: 'po_for_approval' }
     addActivityAsCurrentUser(enquiry, {
-      phase: 'design',
-      title: `PO pending approval — ${formatRevision(revision)}`,
-      detail: 'Awaiting final PO approval',
+      phase: 'accounts',
+      title: `Quote approved for client submission — ${formatRevision(revision)}`,
+      detail: 'Quote reviewed and approved for submission to client',
       revision,
     })
     enquiries[idx] = enquiry
@@ -580,16 +720,16 @@ export const enquiryService = {
       reviewDate: today,
     }
     addActivity(enquiry, {
-      phase: 'design',
-      title: `PO approved — ${formatRevision(revision)}`,
-      detail: 'Ready for order conversion',
+      phase: 'accounts',
+      title: `Quote approved by client — ${formatRevision(revision)}`,
+      detail: 'Client approved quote — order created directly',
       actor: user.name,
       actorRole: user.role,
       revision,
     })
     enquiries[idx] = enquiry
     persist(enquiries)
-    return enquiry
+    return this.convertToOrder(id)
   },
 
   async requestDesignRevision(id: string, reason: string): Promise<Enquiry | undefined> {

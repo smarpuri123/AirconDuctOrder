@@ -12,7 +12,7 @@ export const DISPATCH_STATUS_FLOW: DispatchStatus[] = [
 export const DISPATCH_KANBAN_COLUMNS: { id: DispatchStatus; title: string }[] = [
   { id: 'draft', title: 'Draft' },
   { id: 'loading', title: 'Loading' },
-  { id: 'loaded', title: 'Loaded' },
+  { id: 'loaded', title: 'Vehicle Loaded — Ready to Deliver' },
   { id: 'dispatched', title: 'Dispatched' },
   { id: 'delivered', title: 'Delivered' },
 ]
@@ -56,8 +56,8 @@ export function canTransitionDispatchTo(current: DispatchStatus, target: Dispatc
 
 /** Status progression actions (mobile / ops); draft is created only before trip confirmation */
 export const DISPATCH_STATUS_ACTIONS: { status: DispatchStatus; label: string }[] = [
-  { status: 'loading', label: 'Mark loading' },
-  { status: 'loaded', label: 'Mark loaded' },
-  { status: 'dispatched', label: 'Mark dispatched' },
-  { status: 'delivered', label: 'Mark delivered' },
+  { status: 'loading', label: 'Loading Vehicle' },
+  { status: 'loaded', label: 'Vehicle Loaded — Ready to Deliver' },
+  { status: 'dispatched', label: 'Mark Dispatched' },
+  { status: 'delivered', label: 'Mark Delivered' },
 ]

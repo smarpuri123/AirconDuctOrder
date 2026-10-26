@@ -1,11 +1,19 @@
-import { PHASE_LABELS } from '@/lib/activity'
+import { PHASE_LABELS, resolveActivityPhase } from '@/lib/activity'
 import type { ActivityEntry, ActivityPhase } from '@/types/enquiry'
 
-const PHASE_ORDER: ActivityPhase[] = ['enquiry', 'design', 'order', 'production', 'dispatch']
+const PHASE_ORDER: ActivityPhase[] = [
+  'enquiry',
+  'design',
+  'accounts',
+  'order',
+  'production',
+  'dispatch',
+]
 
 const PHASE_COLORS: Record<ActivityPhase, string> = {
   enquiry: 'border-primary',
   design: 'border-primary-light',
+  accounts: 'border-teal-500',
   order: 'border-secondary',
   production: 'border-secondary-light',
   dispatch: 'border-brand-green',
@@ -13,9 +21,10 @@ const PHASE_COLORS: Record<ActivityPhase, string> = {
 
 function latestByPhase(entries: ActivityEntry[]): Partial<Record<ActivityPhase, ActivityEntry>> {
   const map: Partial<Record<ActivityPhase, ActivityEntry>> = {}
-  for (const entry of entries) {
-    if (!map[entry.phase]) {
-      map[entry.phase] = entry
+  for (const raw of entries) {
+    const phase = resolveActivityPhase(raw.phase, raw.title)
+    if (!map[phase]) {
+      map[phase] = { ...raw, phase }
     }
   }
   return map
@@ -25,7 +34,7 @@ export function WorkflowProgressSummary({ entries }: { entries: ActivityEntry[] 
   const latest = latestByPhase(entries)
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
       {PHASE_ORDER.map((phase) => {
         const entry = latest[phase]
         return (

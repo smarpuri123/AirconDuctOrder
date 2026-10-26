@@ -53,9 +53,15 @@ export interface Order {
   productionApproved?: boolean
   productionApprovedBy?: string
   productionApprovedDate?: string
+  straightDuctsStatus?: import('@/lib/productionTrack').ProductionTrackStatus
+  straightDuctsActiveSeconds?: number
+  straightDuctsRunStartedAt?: string
   straightDuctsCompleted?: boolean
   straightDuctsCompletedAt?: string
   straightDuctsCompletedBy?: string
+  plasmaDuctsStatus?: import('@/lib/productionTrack').ProductionTrackStatus
+  plasmaDuctsActiveSeconds?: number
+  plasmaDuctsRunStartedAt?: string
   plasmaDuctsCompleted?: boolean
   plasmaDuctsCompletedAt?: string
   plasmaDuctsCompletedBy?: string
@@ -92,6 +98,20 @@ export interface DispatchItem {
   area: number
 }
 
+export type DispatchAccessoryMode = 'per_trip' | 'entire_batch'
+
+export interface DispatchAccessoryEntry {
+  quantity: number
+  included: boolean
+}
+
+export interface DispatchAccessories {
+  mode: DispatchAccessoryMode
+  corner: DispatchAccessoryEntry
+  nBolt: DispatchAccessoryEntry
+  cleat: DispatchAccessoryEntry
+}
+
 export interface Dispatch {
   id: string
   dispatchNo: string
@@ -100,6 +120,7 @@ export interface Dispatch {
   customerName: string
   vehicle: VehicleDetails
   items: DispatchItem[]
+  accessories?: DispatchAccessories
   totalQuantity: number
   totalArea: number
   status: DispatchStatus
@@ -122,8 +143,11 @@ export interface DashboardStats {
 
 export interface CreateDispatchDraft {
   orderId: string
+  dispatchId?: string
   quantities: Record<string, number>
+  loadSequence?: string[]
   vehicle: VehicleDetails
+  accessories?: DispatchAccessories
 }
 
 export type OrderFilter = 'all' | 'ready' | 'partial' | 'fully_dispatched' | 'today' | 'overdue'

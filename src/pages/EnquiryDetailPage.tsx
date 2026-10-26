@@ -1,6 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { useParams, useNavigate, Link } from 'react-router-dom'
+import { Download, Upload } from 'lucide-react'
+import {
+  ENQUIRY_FILE_ACCEPT,
+  QUOTATION_FILE_ACCEPT,
+  downloadEnquiryDocument,
+  filesToPayloadsWithProgress,
+} from '@/lib/enquiryDocuments'
 
 import { enquiryService } from '@/services/enquiryService'
 import { jobRoleCodeLabel } from '@/lib/jobRoleLabel'
@@ -34,6 +41,7 @@ import type { ProductionProcess } from '@/types/production'
 import { usePortalRoles } from '@/hooks/usePortalRoles'
 import {
   canAccessDesignImport,
+  canApproveQuoteForClient,
   canAccessDispatchList,
   canManageAccountsWorkflow as portalCanManageAccountsWorkflow,
   canManageDesignWorkflow,
@@ -91,9 +99,15 @@ export function EnquiryDetailPage() {
   const [designAssigneeId, setDesignAssigneeId] = useState('')
   const [designAssigneeRole, setDesignAssigneeRole] = useState('')
   const [savingExtraction, setSavingExtraction] = useState(false)
+  const [assigningDesign, setAssigningDesign] = useState(false)
   const [returnToDesignReason, setReturnToDesignReason] = useState('')
   const [revisionReason, setRevisionReason] = useState('')
   const [workflowNote, setWorkflowNote] = useState('')
+  const [quoteFiles, setQuoteFiles] = useState<File[]>([])
+  const [uploadingQuote, setUploadingQuote] = useState(false)
+  const [uploadingDesignOutput, setUploadingDesignOutput] = useState(false)
+  const quoteInputRef = useRef<HTMLInputElement>(null)
+  const designOutputInputRef = useRef<HTMLInputElement>(null)
 
 
 
@@ -104,6 +118,13 @@ export function EnquiryDetailPage() {
   useEffect(() => {
     enquiryService.refresh().then(() => reload())
   }, [id])
+
+  useEffect(() => {
+    if (!enquiry) return
+    if (enquiry.designReview.status === 'approved' && !enquiry.orderId) {
+      enquiryService.convertToOrder(enquiry.id).then(() => setVersion((n) => n + 1)).catch(() => {})
+    }
+  }, [enquiry?.id, enquiry?.designReview.status, enquiry?.orderId])
 
   useEffect(() => {
     if (!enquiry) return
@@ -168,6 +189,7 @@ export function EnquiryDetailPage() {
     canManageEnquiryIntake(roles) &&
     design.status === 'pending' &&
     !enquiry.orderId &&
+    !enquiry.currentAssigneeId &&
     (canCompleteIntake || canStartReview)
 
   const needsRevisionResume = design.status === 'revision_needed'
@@ -206,7 +228,8 @@ export function EnquiryDetailPage() {
     !enquiry.orderId &&
     canManageDesignWorkflow(roles)
   const canMarkPoReview = design.status === 'submitted_to_accounts' && canManageAccountsWorkflow
-  const canMarkPoApproval = design.status === 'po_for_review' && canManageAccountsWorkflow
+  const canMarkPoApproval = design.status === 'po_for_review' && canApproveQuoteForClient(roles)
+  const hasQuoteDocument = (enquiry.quotationDocuments?.length ?? 0) > 0 || quoteFiles.length > 0
   const canApprovePo = design.status === 'po_for_approval' && canManageAccountsWorkflow
   const canReturnToDesign = canReturnToDesignUi(enquiry, orderSnapshot)
   const canRevertDesignStep =
@@ -216,14 +239,10 @@ export function EnquiryDetailPage() {
   const canRevertOrder =
     order && canManageProductionOnEnquiry(roles) ? canRevertOrderStepUi(order) : false
 
-  const canConvert =
-    design.status === 'approved' && !enquiry.orderId && canManageAccountsWorkflow
-
   const inProduction = order?.status === 'production'
 
   const balanceQty = order ? getOrderBalanceQty(order) : 0
 
-  const productionApproved = order?.productionApproved ?? false
 
 
 
@@ -242,11 +261,13 @@ export function EnquiryDetailPage() {
   }
 
   const handleAcceptAndAssignDesign = async () => {
+    if (assigningDesign) return
     setFormError('')
     if (!designAssigneeId) {
       setFormError('Select the design in-charge for this enquiry.')
       return
     }
+    setAssigningDesign(true)
     try {
       await enquiryService.acceptEnquiryAndAssignDesign(enquiry.id, {
         assigneeId: designAssigneeId,
@@ -255,6 +276,8 @@ export function EnquiryDetailPage() {
       reload()
     } catch (err) {
       setFormError(err instanceof Error ? err.message : 'Failed to accept and assign enquiry')
+    } finally {
+      setAssigningDesign(false)
     }
   }
 
@@ -279,7 +302,7 @@ export function EnquiryDetailPage() {
     const qty = parseInt(totalQty, 10)
     const area = parseFloat(totalArea)
     if (!tags || !qty || !area) {
-      setFormError('Enter duct tags, total quantity, and total area.')
+      setFormError('Enter number of ducts, total quantity, and total area.')
       return
     }
     const prev = enquiry.designReview
@@ -326,17 +349,56 @@ export function EnquiryDetailPage() {
     }
   }
 
-  const handleMarkPoReview = async () => {
+  const handleUploadDesignOutput = async (fileList: FileList | null) => {
+    if (!fileList || fileList.length === 0) return
     setFormError('')
+    setUploadingDesignOutput(true)
     try {
-      const result = await enquiryService.markPoForReview(enquiry.id)
-      if (!result) {
-        setFormError('Could not move to PO review.')
-        return
-      }
+      const payloads = await filesToPayloadsWithProgress(fileList)
+      await enquiryService.uploadDesignOutputFiles(enquiry.id, payloads)
       reload()
     } catch (err) {
-      setFormError(actionError(err, 'Failed to update PO status'))
+      setFormError(actionError(err, 'Failed to upload design file'))
+    } finally {
+      setUploadingDesignOutput(false)
+    }
+  }
+
+  const handleUploadQuoteFiles = async (fileList: FileList | null) => {
+    if (!fileList || fileList.length === 0) return
+    setFormError('')
+    setUploadingQuote(true)
+    try {
+      const payloads = await filesToPayloadsWithProgress(fileList)
+      await enquiryService.uploadQuotationFiles(enquiry.id, payloads)
+      reload()
+    } catch (err) {
+      setFormError(actionError(err, 'Failed to upload Quote document'))
+    } finally {
+      setUploadingQuote(false)
+    }
+  }
+
+  const handleMarkPoReview = async () => {
+    setFormError('')
+    if (!hasQuoteDocument) {
+      setFormError('Upload a Quote document (PDF or Excel) before submitting for Quote review.')
+      return
+    }
+    setUploadingQuote(true)
+    try {
+      const payloads = quoteFiles.length > 0 ? await filesToPayloadsWithProgress(quoteFiles) : undefined
+      const result = await enquiryService.markPoForReview(enquiry.id, payloads)
+      if (!result) {
+        setFormError('Could not move to Quote review.')
+        return
+      }
+      setQuoteFiles([])
+      reload()
+    } catch (err) {
+      setFormError(actionError(err, 'Failed to submit Quote for review'))
+    } finally {
+      setUploadingQuote(false)
     }
   }
 
@@ -345,12 +407,12 @@ export function EnquiryDetailPage() {
     try {
       const result = await enquiryService.markPoForApproval(enquiry.id)
       if (!result) {
-        setFormError('Could not move to PO approval.')
+        setFormError('Could not approve Quote for client submission.')
         return
       }
       reload()
     } catch (err) {
-      setFormError(actionError(err, 'Failed to update PO status'))
+      setFormError(actionError(err, 'Failed to approve Quote for client submission'))
     }
   }
 
@@ -359,12 +421,12 @@ export function EnquiryDetailPage() {
     try {
       const result = await enquiryService.approveDesign(enquiry.id)
       if (!result) {
-        setFormError('PO must be in approval stage before sign-off.')
+        setFormError('Quote must be submitted to client before recording client approval.')
         return
       }
       reload()
     } catch (err) {
-      setFormError(actionError(err, 'Failed to approve PO'))
+      setFormError(actionError(err, 'Failed to approve Quote'))
     }
   }
 
@@ -430,44 +492,18 @@ export function EnquiryDetailPage() {
     }
   }
 
-  const handleConvertToOrder = async () => {
-    setFormError('')
-    try {
-      const updated = await enquiryService.convertToOrder(enquiry.id)
-      if (!updated?.orderId) {
-        setFormError('Design must be approved before converting to order.')
-        return
-      }
-      navigate(`/orders/${updated.orderId}`)
-    } catch (err) {
-      setFormError(actionError(err, 'Failed to convert to order'))
-    }
-  }
-
-
-
-  const handleApproveProduction = async () => {
-    if (!order) return
-    setFormError('')
-    try {
-      await orderService.approveProductionStart(order.id)
-      reload()
-    } catch (err) {
-      setFormError(actionError(err, 'Failed to approve production'))
-    }
-  }
-
-
-
-  const handleCompleteProcess = async (process: ProductionProcess) => {
+  const handleTrackAction = async (
+    process: ProductionProcess,
+    action: import('@/lib/productionTrack').ProductionTrackAction,
+  ) => {
     if (!order) return
     setFormError('')
     setBusyProcess(process)
     try {
-      await orderService.completeProductionProcess(order.id, process)
+      await orderService.updateProductionTrack(order.id, process, action)
       reload()
     } catch (err) {
-      setFormError(actionError(err, 'Failed to update production process'))
+      setFormError(actionError(err, 'Failed to update production track'))
     } finally {
       setBusyProcess(null)
     }
@@ -605,7 +641,7 @@ export function EnquiryDetailPage() {
         <Card>
           <h3 className="font-semibold mb-2">Imported duct schedule</h3>
           <p className="text-sm text-text-secondary mb-4">
-            Tags and dimensions from the designer&apos;s Excel import. The file can be downloaded by anyone
+            Ducts and dimensions from the designer&apos;s Excel import. The file can be downloaded by anyone
             with access to this enquiry.
           </p>
           <DuctSchedulePanel
@@ -694,10 +730,11 @@ export function EnquiryDetailPage() {
             )}
             {formError && <p className="text-error text-sm mb-3">{formError}</p>}
             <Button
+              type="button"
               onClick={handleAcceptAndAssignDesign}
-              disabled={!designAssigneeId || designAssignees.length === 0}
+              disabled={assigningDesign || !designAssigneeId || designAssignees.length === 0}
             >
-              Accept & assign to design
+              {assigningDesign ? 'Assigning…' : 'Accept & assign to design'}
             </Button>
           </div>
         )}
@@ -731,7 +768,7 @@ export function EnquiryDetailPage() {
 
             <p className="text-sm text-text-secondary">
               {canEditExtraction
-                ? 'Import the duct schedule from Excel (required before accounts). You can adjust totals below if needed. Use Request redesign while working on design; during PO processing use Step back or Return to design when engineering must revise.'
+                ? 'Import the duct schedule from Excel (required before accounts). You can adjust totals below if needed. Use Request redesign while working on design; during Quote processing use Step back or Return to design when engineering must revise.'
                 : 'Duct editing is locked after full delivery or once dispatch has started.'}
             </p>
 
@@ -746,7 +783,7 @@ export function EnquiryDetailPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
 
               <Input
-                label="Duct Tags"
+                label="Number of Ducts"
                 type="number"
                 min={1}
                 value={ductTags}
@@ -783,11 +820,151 @@ export function EnquiryDetailPage() {
               placeholder="Dimensions verified, revisions, clarifications..."
             />
 
+            <div className="rounded-lg border border-border bg-background p-4 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium">Design files (shared with client)</p>
+                  <p className="text-xs text-text-secondary">
+                    Upload the design drawings/PDFs to share with the client in the design &amp; quote approval stage. The Schedule Excel file is for internal reference only.
+                  </p>
+                </div>
+                {canEditExtraction && (
+                  <>
+                    <input
+                      ref={designOutputInputRef}
+                      type="file"
+                      multiple
+                      accept={ENQUIRY_FILE_ACCEPT}
+                      className="sr-only"
+                      onChange={(e) => {
+                        void handleUploadDesignOutput(e.target.files)
+                        e.target.value = ''
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      disabled={uploadingDesignOutput}
+                      onClick={() => designOutputInputRef.current?.click()}
+                    >
+                      <Upload className="w-4 h-4" />
+                      {uploadingDesignOutput ? 'Uploading…' : 'Upload Design File'}
+                    </Button>
+                  </>
+                )}
+              </div>
+
+              {(enquiry.designOutputDocuments?.length ?? 0) > 0 ? (
+                <ul className="space-y-2">
+                  {(enquiry.designOutputDocuments ?? []).map((doc, idx, arr) => {
+                    const rev = doc.inputRevision && doc.inputRevision > 0 ? doc.inputRevision : arr.length - idx
+                    return (
+                      <li key={doc.id} className="flex items-center justify-between gap-3 text-sm">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="truncate">{doc.fileName}</span>
+                          <span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-xs font-medium text-primary">
+                            Rev {String(rev).padStart(2, '0')}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          className="flex items-center gap-1 text-primary shrink-0 min-h-11 px-2"
+                          onClick={() => downloadEnquiryDocument({ ...doc, enquiryId: enquiry.id })}
+                        >
+                          <Download className="w-4 h-4" />
+                          Download
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ul>
+              ) : (
+                <p className="text-xs text-text-secondary">
+                  No client design files uploaded yet.
+                </p>
+              )}
+            </div>
+
+            {(APPROVAL_PROCESSING_STATUSES.includes(design.status) ||
+              design.status === 'approved' ||
+              (enquiry.quotationDocuments?.length ?? 0) > 0) && (
+              <div className="rounded-lg border border-border bg-background p-4 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium">Quotation documents (PDF / Excel)</p>
+                    <p className="text-xs text-text-secondary">
+                      {design.status === 'submitted_to_accounts'
+                        ? 'Upload the Quote document (PDF or Excel) to move from Quote preparation to Quote review.'
+                        : design.status === 'po_for_review'
+                          ? 'Admin or Supervisor downloads the Quote document below and approves it for submission to the client.'
+                          : 'Download the Quote document prepared by accounts.'}
+                    </p>
+                  </div>
+                  {canManageAccountsWorkflow && !enquiry.orderId && (
+                    <>
+                      <input
+                        ref={quoteInputRef}
+                        type="file"
+                        multiple
+                        accept={QUOTATION_FILE_ACCEPT}
+                        className="sr-only"
+                        onChange={(e) => {
+                          void handleUploadQuoteFiles(e.target.files)
+                          e.target.value = ''
+                        }}
+                      />
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="secondary"
+                        disabled={uploadingQuote}
+                        onClick={() => quoteInputRef.current?.click()}
+                      >
+                        <Upload className="w-4 h-4" />
+                        {uploadingQuote ? 'Uploading…' : 'Upload Quote'}
+                      </Button>
+                    </>
+                  )}
+                </div>
+
+                {(enquiry.quotationDocuments?.length ?? 0) > 0 ? (
+                  <ul className="space-y-2">
+                    {(enquiry.quotationDocuments ?? []).map((doc, idx, arr) => {
+                      const rev = doc.inputRevision && doc.inputRevision > 0 ? doc.inputRevision : arr.length - idx
+                      return (
+                        <li key={doc.id} className="flex items-center justify-between gap-3 text-sm">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="truncate">{doc.fileName}</span>
+                            <span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-xs font-medium text-primary">
+                              Rev {String(rev).padStart(2, '0')}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            className="flex items-center gap-1 text-primary shrink-0 min-h-11 px-2"
+                            onClick={() => downloadEnquiryDocument({ ...doc, enquiryId: enquiry.id })}
+                          >
+                            <Download className="w-4 h-4" />
+                            Download
+                          </button>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                ) : (
+                  <p className="text-xs text-text-secondary">
+                    No Quote document uploaded yet. Click &ldquo;Upload Quote&rdquo; to attach a PDF or Excel file.
+                  </p>
+                )}
+              </div>
+            )}
+
             {APPROVAL_PROCESSING_STATUSES.includes(design.status) && (
               <p className="text-sm text-text-secondary rounded-md border border-border bg-background px-3 py-2">
-                Approval processing — accounts prepares the PO and tracks client sign-off. If the client requests
-                design changes, use <strong>Return to design</strong> below (starts the next revision for
-                engineering).
+                Quotation processing — accounts prepares and uploads the Quote (PDF/Excel), Admin or Supervisor
+                downloads and approves the Quote for submission to the client, then client approval is recorded. If
+                the client requests design changes, use <strong>Return to design</strong> below.
               </p>
             )}
 
@@ -805,16 +982,16 @@ export function EnquiryDetailPage() {
                 label="Reason for return to design (optional)"
                 value={returnToDesignReason}
                 onChange={(e) => setReturnToDesignReason(e.target.value)}
-                placeholder="e.g. Client PO mismatch — revise duct schedule"
+                placeholder="e.g. Client Quote revision requested — revise duct schedule"
               />
             )}
 
             {canRevertDesignStep && (
               <Textarea
-                label="PO step-back note (optional)"
+                label="Quote step-back note (optional)"
                 value={workflowNote}
                 onChange={(e) => setWorkflowNote(e.target.value)}
-                placeholder="e.g. PO details need correction before the next approval step"
+                placeholder="e.g. Quote details need correction before the next approval step"
               />
             )}
 
@@ -855,15 +1032,28 @@ export function EnquiryDetailPage() {
               )}
 
               {canMarkPoReview && (
-                <Button onClick={handleMarkPoReview}>Mark PO for review</Button>
+                <Button
+                  onClick={handleMarkPoReview}
+                  disabled={uploadingQuote || !hasQuoteDocument}
+                >
+                  {uploadingQuote ? 'Submitting Quote…' : 'Submit Quote for Review'}
+                </Button>
+              )}
+
+              {design.status === 'po_for_review' && !canMarkPoApproval && (
+                <p className="text-sm text-text-secondary self-center">
+                  Awaiting Admin or Supervisor to download the Quote and approve it for client submission.
+                </p>
               )}
 
               {canMarkPoApproval && (
-                <Button onClick={handleMarkPoApproval}>Mark PO for approval</Button>
+                <Button onClick={handleMarkPoApproval}>
+                  Approve Quote for Submission to Client
+                </Button>
               )}
 
               {canApprovePo && (
-                <Button onClick={handleApproveDesign}>Approve PO</Button>
+                <Button onClick={handleApproveDesign}>Approve Quote (Client Approved)</Button>
               )}
 
               {canRequestRedesign && (
@@ -882,12 +1072,6 @@ export function EnquiryDetailPage() {
                 <Button variant="secondary" onClick={handleReturnToDesign}>
                   Return to design
                 </Button>
-              )}
-
-              {canConvert && (
-
-                <Button variant="gold" onClick={handleConvertToOrder}>Convert to Order</Button>
-
               )}
 
             </div>
@@ -924,10 +1108,8 @@ export function EnquiryDetailPage() {
           {showProductionPanel && (
             <ProductionProcessPanel
               order={order}
-              productionApproved={productionApproved}
               inProduction={inProduction}
-              onApproveProduction={handleApproveProduction}
-              onCompleteProcess={handleCompleteProcess}
+              onTrackAction={handleTrackAction}
               onMarkReady={handleMarkReady}
               busyProcess={busyProcess}
             />
@@ -980,6 +1162,8 @@ export function EnquiryDetailPage() {
             documents={[
               ...(enquiry.designDocuments ?? []),
               ...(enquiry.ductScheduleDocuments ?? []),
+              ...(enquiry.designOutputDocuments ?? []),
+              ...(enquiry.quotationDocuments ?? []),
             ]}
           />
         </Card>

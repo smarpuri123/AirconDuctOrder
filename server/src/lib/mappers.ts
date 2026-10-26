@@ -46,9 +46,15 @@ type OrderWithItems = {
   productionApproved: boolean
   productionApprovedBy: string | null
   productionApprovedDate: Date | null
+  straightDuctsStatus: string
+  straightDuctsActiveSeconds: number
+  straightDuctsRunStartedAt: Date | null
   straightDuctsCompleted: boolean
   straightDuctsCompletedAt: Date | null
   straightDuctsCompletedBy: string | null
+  plasmaDuctsStatus: string
+  plasmaDuctsActiveSeconds: number
+  plasmaDuctsRunStartedAt: Date | null
   plasmaDuctsCompleted: boolean
   plasmaDuctsCompletedAt: Date | null
   plasmaDuctsCompletedBy: string | null
@@ -94,6 +100,20 @@ function computeFrontendOrderStatus(order: OrderWithItems): string {
   return base === 'ready' ? 'ready' : base
 }
 
+function mapProductionTrackStatus(
+  dbStatus: string,
+  completed: boolean,
+): 'not_started' | 'running' | 'paused' | 'completed' {
+  if (completed) return 'completed'
+  const map: Record<string, 'not_started' | 'running' | 'paused' | 'completed'> = {
+    NOT_STARTED: 'not_started',
+    RUNNING: 'running',
+    PAUSED: 'paused',
+    COMPLETED: 'completed',
+  }
+  return map[dbStatus] ?? 'not_started'
+}
+
 export function mapOrderToFrontend(order: OrderWithItems) {
   const dispatchedQty = order.items.reduce((s, i) => s + i.dispatchedQty, 0)
   const balanceQty = order.totalQuantity - dispatchedQty
@@ -112,9 +132,18 @@ export function mapOrderToFrontend(order: OrderWithItems) {
     productionApproved: order.productionApproved,
     productionApprovedBy: order.productionApprovedBy ?? undefined,
     productionApprovedDate: order.productionApprovedDate?.toISOString().split('T')[0],
+    straightDuctsStatus: mapProductionTrackStatus(
+      order.straightDuctsStatus,
+      order.straightDuctsCompleted,
+    ),
+    straightDuctsActiveSeconds: order.straightDuctsActiveSeconds,
+    straightDuctsRunStartedAt: order.straightDuctsRunStartedAt?.toISOString(),
     straightDuctsCompleted: order.straightDuctsCompleted,
     straightDuctsCompletedAt: order.straightDuctsCompletedAt?.toISOString(),
     straightDuctsCompletedBy: order.straightDuctsCompletedBy ?? undefined,
+    plasmaDuctsStatus: mapProductionTrackStatus(order.plasmaDuctsStatus, order.plasmaDuctsCompleted),
+    plasmaDuctsActiveSeconds: order.plasmaDuctsActiveSeconds,
+    plasmaDuctsRunStartedAt: order.plasmaDuctsRunStartedAt?.toISOString(),
     plasmaDuctsCompleted: order.plasmaDuctsCompleted,
     plasmaDuctsCompletedAt: order.plasmaDuctsCompletedAt?.toISOString(),
     plasmaDuctsCompletedBy: order.plasmaDuctsCompletedBy ?? undefined,
@@ -161,7 +190,14 @@ function mapPriority(priority: string): string {
 
 function enquiryHasClientInput(enquiry: EnquiryWithRelations): boolean {
   const docs = enquiry.documents ?? []
-  if (docs.some((d) => (d as { category?: string }).category !== 'duct_schedule')) return true
+  if (
+    docs.some((d) => {
+      const cat = (d as { category?: string }).category
+      return cat !== 'duct_schedule' && cat !== 'design_output' && cat !== 'quotation'
+    })
+  ) {
+    return true
+  }
   if (enquiry.drawingFileName?.trim()) return true
   return enquiry.activities.some(
     (a) => a.phase === 'design' && /client input|input files/i.test(a.title),
@@ -199,8 +235,8 @@ function computeEnquiryStage(enquiry: EnquiryWithRelations): string {
   const dispatched = order.items.reduce((s, i) => s + i.dispatchedQty, 0)
   const status = mapDbOrderStatus(order.status)
 
-  if (status === 'fully_dispatched' || status === 'closed') return 'completed'
-  if (status === 'partially_dispatched' || status === 'ready') return 'dispatch'
+  if ((order.totalQuantity > 0 && dispatched >= order.totalQuantity) || status === 'closed') return 'completed'
+  if (dispatched > 0 || status === 'partially_dispatched' || status === 'ready') return 'dispatch'
   if (status === 'production' || status === 'in_production') return 'manufacturing'
   return 'order'
 }
@@ -232,7 +268,10 @@ export function mapEnquiryToFrontend(enquiry: EnquiryWithRelations) {
     remarks: enquiry.remarks,
     drawingFile: enquiry.drawingFileName,
     designDocuments: (enquiry.documents ?? [])
-      .filter((d) => (d as { category?: string }).category !== 'duct_schedule')
+      .filter((d) => {
+        const cat = (d as { category?: string }).category
+        return cat !== 'duct_schedule' && cat !== 'design_output' && cat !== 'quotation'
+      })
       .sort((a, b) => b.uploadedAt.getTime() - a.uploadedAt.getTime())
       .map((d) => ({
         id: d.id,
@@ -259,8 +298,39 @@ export function mapEnquiryToFrontend(enquiry: EnquiryWithRelations) {
         category: 'duct_schedule' as const,
         uploadedAt: d.uploadedAt.toISOString(),
       })),
+    designOutputDocuments: (enquiry.documents ?? [])
+      .filter((d) => (d as { category?: string }).category === 'design_output')
+      .sort((a, b) => b.uploadedAt.getTime() - a.uploadedAt.getTime())
+      .map((d) => ({
+        id: d.id,
+        enquiryId: d.enquiryId,
+        fileName: d.fileName,
+        mimeType: d.mimeType,
+        fileSize: d.fileSize,
+        inputRevision: d.inputRevision,
+        isCurrent: d.isCurrent,
+        category: 'design_output' as const,
+        uploadedAt: d.uploadedAt.toISOString(),
+      })),
+    quotationDocuments: (enquiry.documents ?? [])
+      .filter((d) => (d as { category?: string }).category === 'quotation')
+      .sort((a, b) => b.uploadedAt.getTime() - a.uploadedAt.getTime())
+      .map((d) => ({
+        id: d.id,
+        enquiryId: d.enquiryId,
+        fileName: d.fileName,
+        mimeType: d.mimeType,
+        fileSize: d.fileSize,
+        inputRevision: d.inputRevision,
+        isCurrent: d.isCurrent,
+        category: 'quotation' as const,
+        uploadedAt: d.uploadedAt.toISOString(),
+      })),
     currentDesignDocuments: (enquiry.documents ?? [])
-      .filter((d) => d.isCurrent && (d as { category?: string }).category !== 'duct_schedule')
+      .filter((d) => {
+        const cat = (d as { category?: string }).category
+        return d.isCurrent && cat !== 'duct_schedule' && cat !== 'design_output' && cat !== 'quotation'
+      })
       .map((d) => ({
         id: d.id,
         enquiryId: d.enquiryId,
@@ -301,7 +371,13 @@ export function mapEnquiryToFrontend(enquiry: EnquiryWithRelations) {
       .map((a) => ({
         id: a.id,
         timestamp: a.timestamp.toISOString(),
-        phase: a.phase,
+        phase:
+          a.phase === 'design' &&
+          /^(quote\s+(submitted|approved|document)|po\s+(sent|pending|approved)|design\s*&\s*po\s+approved|workflow step back)/i.test(
+            a.title.trim(),
+          )
+            ? 'accounts'
+            : a.phase,
         title: a.title,
         detail: a.detail,
         actor: a.actor,

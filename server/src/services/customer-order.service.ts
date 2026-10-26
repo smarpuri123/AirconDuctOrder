@@ -6,6 +6,10 @@ import {
   isOrderFullyDelivered,
   orderHasDispatches,
 } from '../lib/order-workflow.js'
+import {
+  resetProductionTrackFields,
+  transitionProductionTrack,
+} from './production-track.service.js'
 
 export async function listCustomerOrders(filters?: { status?: string; search?: string }) {
   const where: Prisma.CustomerOrderWhereInput = {}
@@ -108,51 +112,24 @@ export async function approveProductionStart(orderId: string, actor: { name: str
   return getCustomerOrderById(orderId)
 }
 
-const PROCESS_LABELS: Record<'straight_ducts' | 'plasma_ducts', string> = {
-  straight_ducts: 'Straight Ducts',
-  plasma_ducts: 'Plasma Ducts',
-}
-
 export async function completeProductionProcess(
   orderId: string,
   process: 'straight_ducts' | 'plasma_ducts',
   actor: { name: string; role: string },
 ) {
-  const order = await prisma.customerOrder.findUnique({ where: { id: orderId } })
-  if (!order) return null
+  const order = await transitionProductionTrack(orderId, process, 'complete', actor)
+  return order ? getCustomerOrderById(orderId) : null
+}
 
-  const now = new Date()
-  const updated =
-    process === 'straight_ducts'
-      ? await prisma.customerOrder.updateMany({
-          where: { id: orderId, straightDuctsCompleted: false },
-          data: {
-            straightDuctsCompleted: true,
-            straightDuctsCompletedAt: now,
-            straightDuctsCompletedBy: actor.name,
-          },
-        })
-      : await prisma.customerOrder.updateMany({
-          where: { id: orderId, plasmaDuctsCompleted: false },
-          data: {
-            plasmaDuctsCompleted: true,
-            plasmaDuctsCompletedAt: now,
-            plasmaDuctsCompletedBy: actor.name,
-          },
-        })
-
-  if (updated.count === 0) return getCustomerOrderById(orderId)
-
-  await logOrderActivity(orderId, {
-    phase: 'production',
-    title: `${PROCESS_LABELS[process]} — complete`,
-    detail: `Marked by ${actor.name}`,
-    actor: actor.name,
-    actorRole: actor.role,
-    metadata: { productionProcess: process },
-  })
-
-  return getCustomerOrderById(orderId)
+export async function updateProductionTrack(
+  orderId: string,
+  process: 'straight_ducts' | 'plasma_ducts',
+  action: 'start' | 'pause' | 'resume' | 'complete',
+  actor: { name: string; role: string },
+  note?: string,
+) {
+  const order = await transitionProductionTrack(orderId, process, action, actor, note)
+  return order ? getCustomerOrderById(orderId) : null
 }
 
 export async function markProductionReady(orderId: string, actor: { name: string; role: string }) {
@@ -200,10 +177,14 @@ export async function revertOrderWorkflowStep(
     include: { items: true },
   })
   if (!order) return null
-  if (!canRevertOrderStep(order.status, order.items, order.productionApproved)) return null
+  const floorEngaged =
+    order.productionApproved ||
+    order.straightDuctsStatus !== 'NOT_STARTED' ||
+    order.plasmaDuctsStatus !== 'NOT_STARTED'
+  if (!canRevertOrderStep(order.status, order.items, floorEngaged)) return null
 
   const detail =
-    reason.trim() || describeOrderRevertTarget(order.status, order.productionApproved)
+    reason.trim() || describeOrderRevertTarget(order.status, floorEngaged)
 
   if (order.status === 'READY') {
     await prisma.$transaction([
@@ -217,23 +198,14 @@ export async function revertOrderWorkflowStep(
         where: { id: orderId },
         data: {
           status: 'IN_PRODUCTION',
-          straightDuctsCompleted: false,
-          straightDuctsCompletedAt: null,
-          straightDuctsCompletedBy: null,
-          plasmaDuctsCompleted: false,
-          plasmaDuctsCompletedAt: null,
-          plasmaDuctsCompletedBy: null,
+          ...resetProductionTrackFields(),
         },
       }),
     ])
-  } else if (order.status === 'IN_PRODUCTION' && order.productionApproved) {
-    await prisma.customerOrder.updateMany({
-      where: { id: orderId, productionApproved: true },
-      data: {
-        productionApproved: false,
-        productionApprovedBy: null,
-        productionApprovedDate: null,
-      },
+  } else if (order.status === 'IN_PRODUCTION' && floorEngaged) {
+    await prisma.customerOrder.update({
+      where: { id: orderId },
+      data: resetProductionTrackFields(),
     })
   } else if (order.status === 'IN_PRODUCTION') {
     await prisma.$transaction([
@@ -245,14 +217,7 @@ export async function revertOrderWorkflowStep(
       ),
       prisma.customerOrder.update({
         where: { id: orderId },
-        data: {
-          straightDuctsCompleted: false,
-          straightDuctsCompletedAt: null,
-          straightDuctsCompletedBy: null,
-          plasmaDuctsCompleted: false,
-          plasmaDuctsCompletedAt: null,
-          plasmaDuctsCompletedBy: null,
-        },
+        data: resetProductionTrackFields(),
       }),
     ])
   } else {

@@ -35,6 +35,8 @@ import { DispatchListPage } from '@/pages/DispatchListPage'
 
 import { SettingsPage } from '@/pages/SettingsPage'
 import { AdminDebugLogsPage } from '@/pages/AdminDebugLogsPage'
+import { WorkshopPage } from '@/pages/WorkshopPage'
+import { OperationsFlowPage } from '@/pages/OperationsFlowPage'
 
 import { NotificationProvider } from '@/components/notifications/NotificationProvider'
 
@@ -118,6 +120,10 @@ export default function App() {
             <Route path="/enquiries/:id" element={<EnquiryDetailPage />} />
 
             <Route path="/enquiries/:id/design/import" element={<ExcelImportPage />} />
+
+            <Route path="/workshop" element={<WorkshopPage />} />
+
+            <Route path="/operations/flow" element={<OperationsFlowPage />} />
 
             <Route path="/orders" element={<OrdersPage />} />
 

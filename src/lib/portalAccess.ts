@@ -46,6 +46,11 @@ export function canAccessDashboard(roles: string[]): boolean {
   return hasAnyRole(roles, [PORTAL_ROLES.ADMIN, PORTAL_ROLES.SUPERVISOR])
 }
 
+/** Radial workshop floor board — separate from the KPI dashboard. */
+export function canAccessWorkshop(roles: string[]): boolean {
+  return canAccessEnquiries(roles)
+}
+
 export function canAccessClients(roles: string[]): boolean {
   return hasAnyRole(roles, [PORTAL_ROLES.ADMIN, PORTAL_ROLES.SUPERVISOR])
 }
@@ -123,6 +128,11 @@ export function canManageAccountsWorkflow(roles: string[]): boolean {
   return hasAnyRole(roles, [PORTAL_ROLES.ADMIN, PORTAL_ROLES.SUPERVISOR, PORTAL_ROLES.ACCOUNTS])
 }
 
+/** Admin or Supervisor approves the prepared Quote for submission to the client. */
+export function canApproveQuoteForClient(roles: string[]): boolean {
+  return hasAnyRole(roles, [PORTAL_ROLES.ADMIN, PORTAL_ROLES.SUPERVISOR])
+}
+
 export function canManageProductionOnEnquiry(roles: string[]): boolean {
   return hasAnyRole(roles, [
     PORTAL_ROLES.ADMIN,
@@ -153,6 +163,9 @@ export function portalNavItemsForRoles(roles: string[]): PortalNavItem[] {
   if (canAccessEnquiries(roles)) {
     items.push({ to: '/enquiries', label: 'Enquiries', badgeKey: 'enquiries' })
   }
+  if (canAccessWorkshop(roles)) {
+    items.push({ to: '/workshop', label: 'Workshop', badgeKey: null })
+  }
   if (canAccessOrders(roles)) {
     items.push({ to: '/orders', label: 'Orders', badgeKey: 'orders' })
   }
@@ -171,6 +184,9 @@ export function canAccessPortalPath(roles: string[], pathname: string): boolean 
   if (pathname === '/enquiries/new') return canCreateEnquiry(roles)
   if (pathname.startsWith('/enquiries/') && pathname.includes('/design/import')) {
     return canAccessDesignImport(roles)
+  }
+  if (pathname.startsWith('/workshop') || pathname.startsWith('/operations/flow')) {
+    return canAccessWorkshop(roles)
   }
   if (pathname.startsWith('/enquiries')) return canAccessEnquiries(roles)
   if (pathname.startsWith('/orders')) return canAccessOrders(roles)

@@ -38,9 +38,11 @@ import { OrderStatusChip } from '@/components/ui/Chip'
 
 import { ProgressBar } from '@/components/ui/ProgressBar'
 import { ProductionProcessPanel } from '@/components/operations/ProductionProcessPanel'
+import type { ProductionTrackAction } from '@/lib/productionTrack'
 import type { ProductionProcess } from '@/types/production'
 
 import { DispatchTimeline } from '@/components/dispatch/DispatchTimeline'
+import { useAppStore } from '@/store/appStore'
 
 
 
@@ -79,30 +81,19 @@ export function OrderDetailPage() {
 
   const canDispatch = balanceQty > 0 && !inProduction
 
-  const productionApproved = order.productionApproved ?? false
-
   const reload = () => setVersion((v) => v + 1)
 
-
-
-  const handleApproveProduction = async () => {
-    setFormError('')
-    try {
-      await orderService.approveProductionStart(order.id)
-      reload()
-    } catch (err) {
-      setFormError(err instanceof Error ? err.message : 'Failed to approve production')
-    }
-  }
-
-  const handleCompleteProcess = async (process: ProductionProcess) => {
+  const handleTrackAction = async (
+    process: ProductionProcess,
+    action: ProductionTrackAction,
+  ) => {
     setFormError('')
     setBusyProcess(process)
     try {
-      await orderService.completeProductionProcess(order.id, process)
+      await orderService.updateProductionTrack(order.id, process, action)
       reload()
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : 'Failed to update production process')
+      setFormError(err instanceof Error ? err.message : 'Failed to update production track')
     } finally {
       setBusyProcess(null)
     }
@@ -209,10 +200,8 @@ export function OrderDetailPage() {
 
         <ProductionProcessPanel
           order={order}
-          productionApproved={productionApproved}
           inProduction={inProduction}
-          onApproveProduction={handleApproveProduction}
-          onCompleteProcess={handleCompleteProcess}
+          onTrackAction={handleTrackAction}
           onMarkReady={handleMarkReady}
           busyProcess={busyProcess}
         />
@@ -264,7 +253,13 @@ export function OrderDetailPage() {
 
         {canDispatch && (
 
-          <Button className="mt-6" onClick={() => navigate(`/orders/${order.id}/dispatch`)}>
+          <Button
+            className="mt-6"
+            onClick={() => {
+              useAppStore.getState().setDispatchDraft(null)
+              navigate(`/orders/${order.id}/dispatch`)
+            }}
+          >
 
             <Truck className="w-4 h-4" />
 
@@ -292,7 +287,7 @@ export function OrderDetailPage() {
 
                 <div>
 
-                  <p className="font-semibold">Tag {item.tagNo}</p>
+                  <p className="font-semibold">Duct {item.tagNo}</p>
 
                   <p className="text-sm text-text-secondary">{formatDimensions(item)}</p>
 
