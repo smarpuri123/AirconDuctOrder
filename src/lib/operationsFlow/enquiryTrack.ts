@@ -152,7 +152,7 @@ function designCellStatuses(enquiry: Enquiry): WorkflowStageCell[] {
 
   const work: WorkflowCellStatus =
     dr.status === 'revision_needed'
-      ? 'rejected'
+      ? 'active'
       : designStatusRank(dr.status) < designStatusRank('in_review')
         ? 'pending'
         : dr.status === 'in_review'

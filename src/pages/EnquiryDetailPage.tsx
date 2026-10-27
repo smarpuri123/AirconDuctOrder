@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { Download, RotateCcw, Upload } from 'lucide-react'
+import { Download, FolderOpen, RotateCcw, Upload, X } from 'lucide-react'
 import { WorkflowConfirmModal, StepSuccessModal } from '@/components/ui/WorkflowConfirmModal'
 import {
   ENQUIRY_FILE_ACCEPT,
@@ -101,7 +101,8 @@ export function EnquiryDetailPage() {
   const [designAssigneeRole, setDesignAssigneeRole] = useState('')
   const [savingExtraction, setSavingExtraction] = useState(false)
   const [assigningDesign, setAssigningDesign] = useState(false)
-  const [quoteFiles, setQuoteFiles] = useState<File[]>([])
+  const [pendingDesignFiles, setPendingDesignFiles] = useState<File[]>([])
+  const [pendingQuoteFiles, setPendingQuoteFiles] = useState<File[]>([])
   const [uploadingQuote, setUploadingQuote] = useState(false)
   const [uploadingDesignOutput, setUploadingDesignOutput] = useState(false)
   const [transitionBusy, setTransitionBusy] = useState(false)
@@ -246,7 +247,7 @@ export function EnquiryDetailPage() {
     canManageDesignWorkflow(roles)
   const canMarkPoReview = design.status === 'submitted_to_accounts' && canManageAccountsWorkflow
   const canMarkPoApproval = design.status === 'po_for_review' && canApproveQuoteForClient(roles)
-  const hasQuoteDocument = (enquiry.quotationDocuments?.length ?? 0) > 0 || quoteFiles.length > 0
+  const hasQuoteDocument = (enquiry.quotationDocuments?.length ?? 0) > 0
   const canApprovePo = design.status === 'po_for_approval' && canManageAccountsWorkflow
   const canReturnToDesign = canReturnToDesignUi(enquiry, orderSnapshot)
   const canRevertDesignStep =
@@ -355,14 +356,20 @@ export function EnquiryDetailPage() {
 
 
 
-  const handleUploadDesignOutput = async (fileList: FileList | null) => {
-    if (!fileList || fileList.length === 0 || uploadingDesignOutput) return
+  const handleUploadDesignOutput = async () => {
+    if (pendingDesignFiles.length === 0 || uploadingDesignOutput) return
     setFormError('')
     setUploadingDesignOutput(true)
     try {
-      const payloads = await filesToPayloadsWithProgress(fileList)
+      const payloads = await filesToPayloadsWithProgress(pendingDesignFiles)
       await enquiryService.uploadDesignOutputFiles(enquiry.id, payloads)
+      setPendingDesignFiles([])
       reload()
+      setSuccessModal({
+        open: true,
+        title: 'Design File Uploaded',
+        message: 'Client-shared design file uploaded successfully.',
+      })
     } catch (err) {
       setFormError(actionError(err, 'Failed to upload design file'))
     } finally {
@@ -370,14 +377,20 @@ export function EnquiryDetailPage() {
     }
   }
 
-  const handleUploadQuoteFiles = async (fileList: FileList | null) => {
-    if (!fileList || fileList.length === 0 || uploadingQuote) return
+  const handleUploadQuoteFiles = async () => {
+    if (pendingQuoteFiles.length === 0 || uploadingQuote) return
     setFormError('')
     setUploadingQuote(true)
     try {
-      const payloads = await filesToPayloadsWithProgress(fileList)
+      const payloads = await filesToPayloadsWithProgress(pendingQuoteFiles)
       await enquiryService.uploadQuotationFiles(enquiry.id, payloads)
+      setPendingQuoteFiles([])
       reload()
+      setSuccessModal({
+        open: true,
+        title: 'Quote Document Uploaded',
+        message: 'Quotation document uploaded successfully. You can now submit it for review.',
+      })
     } catch (err) {
       setFormError(actionError(err, 'Failed to upload Quote document'))
     } finally {
@@ -411,13 +424,11 @@ export function EnquiryDetailPage() {
         })
       } else if (type === 'submit_quote_review') {
         setTransitionText('Submitting Quote…')
-        const payloads = quoteFiles.length > 0 ? await filesToPayloadsWithProgress(quoteFiles) : undefined
-        const result = await enquiryService.markPoForReview(enquiry.id, payloads)
+        const result = await enquiryService.markPoForReview(enquiry.id)
         if (!result) {
           setFormError('Could not move to Quote review.')
           return
         }
-        setQuoteFiles([])
         setConfirmModalType(null)
         setConfirmNote('')
         reload()
@@ -1010,7 +1021,7 @@ export function EnquiryDetailPage() {
                   </p>
                 </div>
                 {canEditExtraction && (
-                  <>
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
                     <input
                       ref={designOutputInputRef}
                       type="file"
@@ -1019,7 +1030,9 @@ export function EnquiryDetailPage() {
                       disabled={uploadingDesignOutput}
                       className="sr-only"
                       onChange={(e) => {
-                        void handleUploadDesignOutput(e.target.files)
+                        if (e.target.files && e.target.files.length > 0) {
+                          setPendingDesignFiles(Array.from(e.target.files))
+                        }
                         e.target.value = ''
                       }}
                     />
@@ -1030,12 +1043,52 @@ export function EnquiryDetailPage() {
                       disabled={uploadingDesignOutput}
                       onClick={() => designOutputInputRef.current?.click()}
                     >
-                      <Upload className="w-4 h-4" />
-                      {uploadingDesignOutput ? 'Uploading…' : 'Upload Design File'}
+                      <FolderOpen className="w-4 h-4" />
+                      {pendingDesignFiles.length > 0 ? 'Change File' : 'Browse Design File'}
                     </Button>
-                  </>
+                    {pendingDesignFiles.length > 0 && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={uploadingDesignOutput}
+                        onClick={handleUploadDesignOutput}
+                      >
+                        <Upload className="w-4 h-4" />
+                        {uploadingDesignOutput ? 'Uploading…' : `Upload ${pendingDesignFiles.length === 1 ? 'Design File' : `${pendingDesignFiles.length} Files`}`}
+                      </Button>
+                    )}
+                  </div>
                 )}
               </div>
+
+              {pendingDesignFiles.length > 0 && (
+                <div className="flex flex-wrap items-center gap-2 p-2.5 rounded-md bg-primary/5 border border-primary/20 text-xs">
+                  <span className="font-semibold text-primary">Selected for upload:</span>
+                  {pendingDesignFiles.map((file, idx) => (
+                    <span key={idx} className="inline-flex items-center gap-1.5 bg-surface border border-border px-2 py-1 rounded">
+                      <span className="font-medium text-text-primary truncate max-w-[200px]">{file.name}</span>
+                      <span className="text-text-secondary">({(file.size / 1024).toFixed(0)} KB)</span>
+                      <button
+                        type="button"
+                        onClick={() => setPendingDesignFiles((prev) => prev.filter((_, i) => i !== idx))}
+                        disabled={uploadingDesignOutput}
+                        className="text-text-secondary hover:text-error ml-1"
+                        title="Remove"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </span>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setPendingDesignFiles([])}
+                    disabled={uploadingDesignOutput}
+                    className="text-text-secondary hover:underline ml-auto"
+                  >
+                    Clear
+                  </button>
+                </div>
+              )}
 
               {(enquiry.designOutputDocuments?.length ?? 0) > 0 ? (
                 <ul className="space-y-2">
@@ -1084,7 +1137,7 @@ export function EnquiryDetailPage() {
                     </p>
                   </div>
                   {canManageAccountsWorkflow && !enquiry.orderId && (
-                    <>
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
                       <input
                         ref={quoteInputRef}
                         type="file"
@@ -1093,7 +1146,9 @@ export function EnquiryDetailPage() {
                         disabled={uploadingQuote}
                         className="sr-only"
                         onChange={(e) => {
-                          void handleUploadQuoteFiles(e.target.files)
+                          if (e.target.files && e.target.files.length > 0) {
+                            setPendingQuoteFiles(Array.from(e.target.files))
+                          }
                           e.target.value = ''
                         }}
                       />
@@ -1104,12 +1159,52 @@ export function EnquiryDetailPage() {
                         disabled={uploadingQuote}
                         onClick={() => quoteInputRef.current?.click()}
                       >
-                        <Upload className="w-4 h-4" />
-                        {uploadingQuote ? 'Uploading…' : 'Upload Quote'}
+                        <FolderOpen className="w-4 h-4" />
+                        {pendingQuoteFiles.length > 0 ? 'Change File' : 'Browse Quote File'}
                       </Button>
-                    </>
+                      {pendingQuoteFiles.length > 0 && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          disabled={uploadingQuote}
+                          onClick={handleUploadQuoteFiles}
+                        >
+                          <Upload className="w-4 h-4" />
+                          {uploadingQuote ? 'Uploading…' : `Upload ${pendingQuoteFiles.length === 1 ? 'Quote Document' : `${pendingQuoteFiles.length} Documents`}`}
+                        </Button>
+                      )}
+                    </div>
                   )}
                 </div>
+
+                {pendingQuoteFiles.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-2 p-2.5 rounded-md bg-primary/5 border border-primary/20 text-xs">
+                    <span className="font-semibold text-primary">Selected for upload:</span>
+                    {pendingQuoteFiles.map((file, idx) => (
+                      <span key={idx} className="inline-flex items-center gap-1.5 bg-surface border border-border px-2 py-1 rounded">
+                        <span className="font-medium text-text-primary truncate max-w-[200px]">{file.name}</span>
+                        <span className="text-text-secondary">({(file.size / 1024).toFixed(0)} KB)</span>
+                        <button
+                          type="button"
+                          onClick={() => setPendingQuoteFiles((prev) => prev.filter((_, i) => i !== idx))}
+                          disabled={uploadingQuote}
+                          className="text-text-secondary hover:text-error ml-1"
+                          title="Remove"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </span>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setPendingQuoteFiles([])}
+                      disabled={uploadingQuote}
+                      className="text-text-secondary hover:underline ml-auto"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                )}
 
                 {(enquiry.quotationDocuments?.length ?? 0) > 0 ? (
                   <ul className="space-y-2">
@@ -1185,18 +1280,25 @@ export function EnquiryDetailPage() {
               )}
 
               {canMarkPoReview && (
-                <Button
-                  onClick={() => {
-                    if (!hasQuoteDocument) {
-                      setFormError('Upload a Quote document (PDF or Excel) before submitting for Quote review.')
-                      return
-                    }
-                    setConfirmModalType('submit_quote_review')
-                  }}
-                  disabled={uploadingQuote || !hasQuoteDocument || transitionBusy}
-                >
-                  {uploadingQuote ? 'Submitting Quote…' : 'Submit Quote for Review'}
-                </Button>
+                <div className="flex flex-col gap-2">
+                  <Button
+                    onClick={() => {
+                      if (!hasQuoteDocument) {
+                        setFormError('Upload a Quote document (PDF or Excel) before submitting for Quote review.')
+                        return
+                      }
+                      setConfirmModalType('submit_quote_review')
+                    }}
+                    disabled={uploadingQuote || !hasQuoteDocument || transitionBusy}
+                  >
+                    {uploadingQuote ? 'Submitting Quote…' : 'Submit Quote for Review'}
+                  </Button>
+                  {!hasQuoteDocument && (
+                    <p className="text-xs text-amber-700 bg-amber-500/10 border border-amber-500/30 px-3 py-1.5 rounded-md">
+                      Upload the Quote document (PDF or Excel) above to move from Quote preparation to Quote review.
+                    </p>
+                  )}
+                </div>
               )}
 
               {design.status === 'po_for_review' && !canMarkPoApproval && (

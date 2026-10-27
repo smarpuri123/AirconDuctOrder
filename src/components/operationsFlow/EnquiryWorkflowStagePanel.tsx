@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Download, Upload } from 'lucide-react'
+import { Download, FolderOpen, Upload, X } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Select } from '@/components/ui/Select'
 import { Modal } from '@/components/ui/Modal'
@@ -53,6 +53,8 @@ export function EnquiryWorkflowStagePanel({ selection, onClose, onUpdated }: Pro
   const [assigneeRole, setAssigneeRole] = useState('')
   const [busy, setBusy] = useState(false)
   const [busyProcess, setBusyProcess] = useState<ProductionProcess | null>(null)
+  const [pendingDesignFiles, setPendingDesignFiles] = useState<File[]>([])
+  const [pendingQuoteFiles, setPendingQuoteFiles] = useState<File[]>([])
   const quoteInputRef = useRef<HTMLInputElement>(null)
   const designOutputInputRef = useRef<HTMLInputElement>(null)
 
@@ -119,7 +121,7 @@ export function EnquiryWorkflowStagePanel({ selection, onClose, onUpdated }: Pro
           </p>
         </div>
         {allowUpload && (
-          <>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-1.5">
             <input
               ref={designOutputInputRef}
               type="file"
@@ -127,12 +129,8 @@ export function EnquiryWorkflowStagePanel({ selection, onClose, onUpdated }: Pro
               accept={ENQUIRY_FILE_ACCEPT}
               className="sr-only"
               onChange={(e) => {
-                const files = e.target.files
-                if (files && files.length > 0) {
-                  void run(async () => {
-                    const payloads = await filesToPayloadsWithProgress(files)
-                    await enquiryService.uploadDesignOutputFiles(enquiry.id, payloads)
-                  })
+                if (e.target.files && e.target.files.length > 0) {
+                  setPendingDesignFiles(Array.from(e.target.files))
                 }
                 e.target.value = ''
               }}
@@ -144,12 +142,56 @@ export function EnquiryWorkflowStagePanel({ selection, onClose, onUpdated }: Pro
               disabled={busy}
               onClick={() => designOutputInputRef.current?.click()}
             >
-              <Upload className="w-3.5 h-3.5" />
-              Upload Design File
+              <FolderOpen className="w-3.5 h-3.5" />
+              {pendingDesignFiles.length > 0 ? 'Change File' : 'Browse Design File'}
             </Button>
-          </>
+            {pendingDesignFiles.length > 0 && (
+              <Button
+                type="button"
+                size="sm"
+                disabled={busy}
+                onClick={() =>
+                  run(async () => {
+                    const payloads = await filesToPayloadsWithProgress(pendingDesignFiles)
+                    await enquiryService.uploadDesignOutputFiles(enquiry.id, payloads)
+                    setPendingDesignFiles([])
+                  })
+                }
+              >
+                <Upload className="w-3.5 h-3.5" />
+                {busy ? 'Uploading…' : `Upload ${pendingDesignFiles.length === 1 ? 'Design File' : `${pendingDesignFiles.length} Files`}`}
+              </Button>
+            )}
+          </div>
         )}
       </div>
+      {pendingDesignFiles.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5 p-2 rounded bg-primary/5 border border-primary/20 text-xs">
+          <span className="font-semibold text-primary">Selected:</span>
+          {pendingDesignFiles.map((file, idx) => (
+            <span key={idx} className="inline-flex items-center gap-1 bg-white border border-border px-1.5 py-0.5 rounded text-[11px]">
+              <span className="truncate max-w-[150px]">{file.name}</span>
+              <button
+                type="button"
+                onClick={() => setPendingDesignFiles((prev) => prev.filter((_, i) => i !== idx))}
+                disabled={busy}
+                className="text-text-secondary hover:text-error ml-0.5"
+                title="Remove"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          ))}
+          <button
+            type="button"
+            onClick={() => setPendingDesignFiles([])}
+            disabled={busy}
+            className="text-text-secondary hover:underline ml-auto text-[11px]"
+          >
+            Clear
+          </button>
+        </div>
+      )}
       {designOutputDocs.length > 0 ? (
         <ul className="space-y-1.5">
           {designOutputDocs.map((doc, idx) => {
@@ -193,7 +235,7 @@ export function EnquiryWorkflowStagePanel({ selection, onClose, onUpdated }: Pro
           </p>
         </div>
         {canAccounts && !enquiry.orderId && (
-          <>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-1.5">
             <input
               ref={quoteInputRef}
               type="file"
@@ -201,12 +243,8 @@ export function EnquiryWorkflowStagePanel({ selection, onClose, onUpdated }: Pro
               accept={QUOTATION_FILE_ACCEPT}
               className="sr-only"
               onChange={(e) => {
-                const files = e.target.files
-                if (files && files.length > 0) {
-                  void run(async () => {
-                    const payloads = await filesToPayloadsWithProgress(files)
-                    await enquiryService.uploadQuotationFiles(enquiry.id, payloads)
-                  })
+                if (e.target.files && e.target.files.length > 0) {
+                  setPendingQuoteFiles(Array.from(e.target.files))
                 }
                 e.target.value = ''
               }}
@@ -218,12 +256,56 @@ export function EnquiryWorkflowStagePanel({ selection, onClose, onUpdated }: Pro
               disabled={busy}
               onClick={() => quoteInputRef.current?.click()}
             >
-              <Upload className="w-3.5 h-3.5" />
-              Upload Quote
+              <FolderOpen className="w-3.5 h-3.5" />
+              {pendingQuoteFiles.length > 0 ? 'Change File' : 'Browse Quote File'}
             </Button>
-          </>
+            {pendingQuoteFiles.length > 0 && (
+              <Button
+                type="button"
+                size="sm"
+                disabled={busy}
+                onClick={() =>
+                  run(async () => {
+                    const payloads = await filesToPayloadsWithProgress(pendingQuoteFiles)
+                    await enquiryService.uploadQuotationFiles(enquiry.id, payloads)
+                    setPendingQuoteFiles([])
+                  })
+                }
+              >
+                <Upload className="w-3.5 h-3.5" />
+                {busy ? 'Uploading…' : `Upload ${pendingQuoteFiles.length === 1 ? 'Quote Document' : `${pendingQuoteFiles.length} Documents`}`}
+              </Button>
+            )}
+          </div>
         )}
       </div>
+      {pendingQuoteFiles.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5 p-2 rounded bg-primary/5 border border-primary/20 text-xs">
+          <span className="font-semibold text-primary">Selected:</span>
+          {pendingQuoteFiles.map((file, idx) => (
+            <span key={idx} className="inline-flex items-center gap-1 bg-white border border-border px-1.5 py-0.5 rounded text-[11px]">
+              <span className="truncate max-w-[150px]">{file.name}</span>
+              <button
+                type="button"
+                onClick={() => setPendingQuoteFiles((prev) => prev.filter((_, i) => i !== idx))}
+                disabled={busy}
+                className="text-text-secondary hover:text-error ml-0.5"
+                title="Remove"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          ))}
+          <button
+            type="button"
+            onClick={() => setPendingQuoteFiles([])}
+            disabled={busy}
+            className="text-text-secondary hover:underline ml-auto text-[11px]"
+          >
+            Clear
+          </button>
+        </div>
+      )}
       {quoteDocs.length > 0 ? (
         <ul className="space-y-1.5">
           {quoteDocs.map((doc, idx) => {
