@@ -1,6 +1,6 @@
 param(
   [string]$DumpFile = "remote_backup.sql",
-  [string]$Host = "localhost",
+  [string]$PostgresHost = "localhost",
   [int]$Port = 5433,
   [string]$User = "ecovent",
   [string]$Database = "ecovent_ops",
@@ -29,11 +29,11 @@ if (-not (Test-Path $DumpFile)) {
   throw "Dump file '$DumpFile' not found. Please place remote_backup.sql in this directory."
 }
 
-Write-Host "Restoring database from $DumpFile into $Database on $Host`:$Port..." -ForegroundColor Cyan
+Write-Host "Restoring database from $DumpFile into $Database on $PostgresHost`:$Port..." -ForegroundColor Cyan
 
 $env:PGPASSWORD = $Password
 try {
-  & $psql -h $Host -p $Port -U $User -d $Database -f $DumpFile
+  & $psql -h $PostgresHost -p $Port -U $User -d $Database -f $DumpFile
   Write-Host "Database restore completed successfully!" -ForegroundColor Green
 } finally {
   Remove-Item Env:PGPASSWORD -ErrorAction SilentlyContinue

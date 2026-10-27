@@ -16,3 +16,7 @@ release/
 !.env.capacitor.example
 server/.env
 .env.docker
+
+# Database dumps & archives
+*.sql
+*.tar.gz
