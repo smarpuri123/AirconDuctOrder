@@ -29,6 +29,7 @@ import type { DispatchStatus } from '@/types'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { DispatchStatusChip } from '@/components/ui/Chip'
+import { WorkflowConfirmModal, StepSuccessModal } from '@/components/ui/WorkflowConfirmModal'
 
 export function DispatchDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -37,6 +38,12 @@ export function DispatchDetailPage() {
   const [version, setVersion] = useState(0)
   const [updatingStatus, setUpdatingStatus] = useState(false)
   const [statusError, setStatusError] = useState('')
+  const [pendingStatus, setPendingStatus] = useState<DispatchStatus | null>(null)
+  const [successModal, setSuccessModal] = useState<{ open: boolean; title: string; message: string }>({
+    open: false,
+    title: '',
+    message: '',
+  })
 
   const dispatch = dispatchService.getDispatchById(id!)
   const order = dispatch ? orderService.getOrderById(dispatch.orderId) : undefined
@@ -76,13 +83,22 @@ export function DispatchDetailPage() {
     navigate(`/orders/${order.id}/dispatch/vehicle`)
   }
 
-  const handleStatusUpdate = async (target: DispatchStatus) => {
-    if (!canTransitionDispatchTo(currentStatus, target) || updatingStatus) return
+  const handleExecuteStatusUpdate = async () => {
+    if (!pendingStatus || !canTransitionDispatchTo(currentStatus, pendingStatus) || updatingStatus) return
+    const target = pendingStatus
+    const targetLabel =
+      DISPATCH_STATUS_ACTIONS.find((a) => a.status === target)?.label ?? target
     setUpdatingStatus(true)
     setStatusError('')
     try {
       await dispatchService.updateDispatchStatus(dispatch.id, target)
+      setPendingStatus(null)
       setVersion((v) => v + 1)
+      setSuccessModal({
+        open: true,
+        title: 'Dispatch Status Updated',
+        message: `Dispatch trip status successfully advanced to "${targetLabel}".`,
+      })
     } catch (err) {
       setStatusError(err instanceof Error ? err.message : 'Failed to update status')
     } finally {
@@ -133,7 +149,7 @@ export function DispatchDetailPage() {
                   key={status}
                   type="button"
                   disabled={updatingStatus || !canAdvance}
-                  onClick={() => handleStatusUpdate(status)}
+                  onClick={() => setPendingStatus(status)}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors disabled:opacity-50 ${
                     isCurrent
                       ? 'border-primary bg-primary/10 text-primary'
@@ -310,6 +326,26 @@ export function DispatchDetailPage() {
           <Download className="w-4 h-4" /> PDF
         </Button>
       </div>
+
+      {pendingStatus && (
+        <WorkflowConfirmModal
+          open={Boolean(pendingStatus)}
+          title={`Update Dispatch Status to ${DISPATCH_STATUS_ACTIONS.find((a) => a.status === pendingStatus)?.label ?? pendingStatus}`}
+          description={`Are you sure you want to transition this dispatch trip to "${DISPATCH_STATUS_ACTIONS.find((a) => a.status === pendingStatus)?.label ?? pendingStatus}"? This updates the live delivery progress.`}
+          confirmText="Confirm Status Update"
+          variant="primary"
+          busy={updatingStatus}
+          onConfirm={handleExecuteStatusUpdate}
+          onClose={() => setPendingStatus(null)}
+        />
+      )}
+
+      <StepSuccessModal
+        open={successModal.open}
+        onClose={() => setSuccessModal((prev) => ({ ...prev, open: false }))}
+        title={successModal.title}
+        message={successModal.message}
+      />
     </div>
   )
 }

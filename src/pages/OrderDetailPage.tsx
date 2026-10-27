@@ -2,7 +2,7 @@ import { useState } from 'react'
 
 import { useParams, useNavigate } from 'react-router-dom'
 
-import { ArrowLeft, Truck } from 'lucide-react'
+import { ArrowLeft, RotateCcw, Truck } from 'lucide-react'
 
 import { orderService } from '@/services/orderService'
 
@@ -13,6 +13,9 @@ import { enquiryService } from '@/services/enquiryService'
 import { ActivityTimeline } from '@/components/operations/ActivityTimeline'
 
 import { WorkflowProgressSummary } from '@/components/operations/WorkflowProgressSummary'
+import { canRevertOrderStepUi, orderRevertStepLabel } from '@/lib/orderWorkflow'
+import { canManageProductionOnEnquiry } from '@/lib/portalAccess'
+import { WorkflowConfirmModal, StepSuccessModal } from '@/components/ui/WorkflowConfirmModal'
 
 import {
 
@@ -43,6 +46,7 @@ import type { ProductionProcess } from '@/types/production'
 
 import { DispatchTimeline } from '@/components/dispatch/DispatchTimeline'
 import { useAppStore } from '@/store/appStore'
+import { usePortalRoles } from '@/hooks/usePortalRoles'
 
 
 
@@ -56,6 +60,14 @@ export function OrderDetailPage() {
 
   const [busyProcess, setBusyProcess] = useState<ProductionProcess | null>(null)
   const [formError, setFormError] = useState('')
+  const [actionBusy, setActionBusy] = useState(false)
+  const [confirmModalType, setConfirmModalType] = useState<'mark_ready' | 'revert_order' | null>(null)
+  const [confirmNote, setConfirmNote] = useState('')
+  const [successModal, setSuccessModal] = useState<{ open: boolean; title: string; message: string }>({
+    open: false,
+    title: '',
+    message: '',
+  })
 
   const order = orderService.getOrderById(id!)
 
@@ -63,7 +75,9 @@ export function OrderDetailPage() {
 
   const enquiry = enquiryService.getEnquiryByOrderId(id!)
 
-
+  const roles = usePortalRoles()
+  const canRevertOrder =
+    order && canManageProductionOnEnquiry(roles) ? canRevertOrderStepUi(order) : false
 
   if (!order) {
 
@@ -99,13 +113,43 @@ export function OrderDetailPage() {
     }
   }
 
-  const handleMarkReady = async () => {
+  const handleMarkReady = () => {
     setFormError('')
+    setConfirmModalType('mark_ready')
+  }
+
+  const handleExecuteConfirmedAction = async () => {
+    if (!confirmModalType || actionBusy) return
+    setFormError('')
+    setActionBusy(true)
+    const type = confirmModalType
+    const note = confirmNote.trim()
+
     try {
-      await orderService.markProductionReady(order.id)
-      reload()
+      if (type === 'mark_ready') {
+        await orderService.markProductionReady(order.id)
+        setConfirmModalType(null)
+        reload()
+        setSuccessModal({
+          open: true,
+          title: 'Production Marked as Ready',
+          message: 'The order has been marked ready for dispatch. Dispatch trips can now be scheduled.',
+        })
+      } else if (type === 'revert_order') {
+        await orderService.revertOrderWorkflowStep(order.id, note)
+        setConfirmModalType(null)
+        setConfirmNote('')
+        reload()
+        setSuccessModal({
+          open: true,
+          title: 'Production Stepped Back',
+          message: 'Production order moved back to the previous workflow stage.',
+        })
+      }
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : 'Failed to mark ready')
+      setFormError(err instanceof Error ? err.message : 'Failed to execute action')
+    } finally {
+      setActionBusy(false)
     }
   }
 
@@ -163,13 +207,40 @@ export function OrderDetailPage() {
 
 
 
-      {enquiry && enquiry.activity.length > 0 && (
+      {enquiry && (enquiry.activity.length > 0 || canRevertOrder) && (
 
         <Card>
 
-          <h3 className="font-semibold mb-4">Delivery Progress</h3>
+          <h3 className="font-semibold mb-4">Workflow &amp; Delivery Progress</h3>
 
-          <WorkflowProgressSummary entries={enquiry.activity} />
+          {enquiry.activity.length > 0 && (
+            <WorkflowProgressSummary entries={enquiry.activity} />
+          )}
+
+          {canRevertOrder && (
+            <div className={`${enquiry.activity.length > 0 ? 'mt-5 pt-4 border-t border-border' : ''}`}>
+              <div className="flex items-center gap-2 mb-1.5">
+                <RotateCcw className="w-4 h-4 text-warning" />
+                <h4 className="text-sm font-semibold text-text-primary">Workflow Reversion &amp; Corrections</h4>
+              </div>
+              <p className="text-xs text-text-secondary mb-3">
+                Need to roll back production stages? Use the option below to step back.
+              </p>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  setConfirmNote('')
+                  setConfirmModalType('revert_order')
+                }}
+                disabled={actionBusy}
+                className="border-warning/30 hover:bg-warning/10 text-warning"
+              >
+                <RotateCcw className="w-3.5 h-3.5 mr-1" />
+                {orderRevertStepLabel(order)}
+              </Button>
+            </div>
+          )}
 
         </Card>
 
@@ -344,6 +415,47 @@ export function OrderDetailPage() {
         </Card>
 
       )}
+
+      {confirmModalType === 'mark_ready' && (
+        <WorkflowConfirmModal
+          open={Boolean(confirmModalType)}
+          title="Mark Production Order as Ready"
+          description="Confirm that all shop floor duct manufacturing lines are complete and this order is ready for dispatch?"
+          confirmText="Confirm & Mark Ready"
+          variant="primary"
+          busy={actionBusy}
+          onConfirm={handleExecuteConfirmedAction}
+          onClose={() => setConfirmModalType(null)}
+        />
+      )}
+
+      {confirmModalType === 'revert_order' && (
+        <WorkflowConfirmModal
+          open={Boolean(confirmModalType)}
+          title={orderRevertStepLabel(order)}
+          description="Step back the production order to the previous workflow stage?"
+          confirmText="Confirm Step Back"
+          variant="warning"
+          busy={actionBusy}
+          showNote={true}
+          noteLabel="Production step-back note (optional)"
+          notePlaceholder="Why is production moving back?"
+          noteValue={confirmNote}
+          onNoteChange={setConfirmNote}
+          onConfirm={handleExecuteConfirmedAction}
+          onClose={() => {
+            setConfirmModalType(null)
+            setConfirmNote('')
+          }}
+        />
+      )}
+
+      <StepSuccessModal
+        open={successModal.open}
+        onClose={() => setSuccessModal((prev) => ({ ...prev, open: false }))}
+        title={successModal.title}
+        message={successModal.message}
+      />
 
     </div>
 

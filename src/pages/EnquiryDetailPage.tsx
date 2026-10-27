@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { Download, Upload } from 'lucide-react'
+import { Download, RotateCcw, Upload } from 'lucide-react'
+import { WorkflowConfirmModal, StepSuccessModal } from '@/components/ui/WorkflowConfirmModal'
 import {
   ENQUIRY_FILE_ACCEPT,
   QUOTATION_FILE_ACCEPT,
@@ -100,14 +101,28 @@ export function EnquiryDetailPage() {
   const [designAssigneeRole, setDesignAssigneeRole] = useState('')
   const [savingExtraction, setSavingExtraction] = useState(false)
   const [assigningDesign, setAssigningDesign] = useState(false)
-  const [returnToDesignReason, setReturnToDesignReason] = useState('')
-  const [revisionReason, setRevisionReason] = useState('')
-  const [workflowNote, setWorkflowNote] = useState('')
   const [quoteFiles, setQuoteFiles] = useState<File[]>([])
   const [uploadingQuote, setUploadingQuote] = useState(false)
   const [uploadingDesignOutput, setUploadingDesignOutput] = useState(false)
   const [transitionBusy, setTransitionBusy] = useState(false)
   const [transitionText, setTransitionText] = useState('')
+  const [confirmModalType, setConfirmModalType] = useState<
+    | 'submit_to_accounts'
+    | 'submit_quote_review'
+    | 'approve_quote_client'
+    | 'approve_quote_final'
+    | 'revert_design_step'
+    | 'return_to_design'
+    | 'request_redesign'
+    | 'revert_order_step'
+    | null
+  >(null)
+  const [confirmNote, setConfirmNote] = useState('')
+  const [successModal, setSuccessModal] = useState<{ open: boolean; title?: string; message: string }>({
+    open: false,
+    title: '',
+    message: '',
+  })
   const quoteInputRef = useRef<HTMLInputElement>(null)
   const designOutputInputRef = useRef<HTMLInputElement>(null)
 
@@ -240,6 +255,9 @@ export function EnquiryDetailPage() {
     canRequestDesignRevisionUi(enquiry, orderSnapshot) && canManageDesignWorkflow(roles)
   const canRevertOrder =
     order && canManageProductionOnEnquiry(roles) ? canRevertOrderStepUi(order) : false
+  const hasAnyRevertAction = Boolean(
+    canRevertDesignStep || canReturnToDesign || canRequestRedesign || canRevertOrder,
+  )
 
   const inProduction = order?.status === 'production'
 
@@ -337,26 +355,6 @@ export function EnquiryDetailPage() {
 
 
 
-  const handleSubmitToAccounts = async () => {
-    if (transitionBusy) return
-    setFormError('')
-    setTransitionBusy(true)
-    setTransitionText('Submitting to accounts…')
-    try {
-      const result = await enquiryService.submitDesignToAccounts(enquiry.id)
-      if (!result) {
-        setFormError('Import duct schedule from Excel before submitting to accounts.')
-        return
-      }
-      reload()
-    } catch (err) {
-      setFormError(actionError(err, 'Failed to submit to accounts'))
-    } finally {
-      setTransitionBusy(false)
-      setTransitionText('')
-    }
-  }
-
   const handleUploadDesignOutput = async (fileList: FileList | null) => {
     if (!fileList || fileList.length === 0 || uploadingDesignOutput) return
     setFormError('')
@@ -387,147 +385,215 @@ export function EnquiryDetailPage() {
     }
   }
 
-  const handleMarkPoReview = async () => {
-    if (uploadingQuote) return
-    setFormError('')
-    if (!hasQuoteDocument) {
-      setFormError('Upload a Quote document (PDF or Excel) before submitting for Quote review.')
-      return
-    }
-    setUploadingQuote(true)
-    try {
-      const payloads = quoteFiles.length > 0 ? await filesToPayloadsWithProgress(quoteFiles) : undefined
-      const result = await enquiryService.markPoForReview(enquiry.id, payloads)
-      if (!result) {
-        setFormError('Could not move to Quote review.')
-        return
-      }
-      setQuoteFiles([])
-      reload()
-    } catch (err) {
-      setFormError(actionError(err, 'Failed to submit Quote for review'))
-    } finally {
-      setUploadingQuote(false)
-    }
-  }
-
-  const handleMarkPoApproval = async () => {
-    if (transitionBusy) return
+  const handleExecuteConfirmedAction = async () => {
+    if (!confirmModalType || transitionBusy) return
     setFormError('')
     setTransitionBusy(true)
-    setTransitionText('Approving Quote…')
+
+    const type = confirmModalType
+    const note = confirmNote.trim()
+
     try {
-      const result = await enquiryService.markPoForApproval(enquiry.id)
-      if (!result) {
-        setFormError('Could not approve Quote for client submission.')
-        return
+      if (type === 'submit_to_accounts') {
+        setTransitionText('Submitting to accounts…')
+        const result = await enquiryService.submitDesignToAccounts(enquiry.id)
+        if (!result) {
+          setFormError('Import duct schedule from Excel before submitting to accounts.')
+          return
+        }
+        setConfirmModalType(null)
+        setConfirmNote('')
+        reload()
+        setSuccessModal({
+          open: true,
+          title: 'Submitted to Accounts',
+          message: 'Duct extraction and drawings were successfully submitted to Accounts for quote preparation.',
+        })
+      } else if (type === 'submit_quote_review') {
+        setTransitionText('Submitting Quote…')
+        const payloads = quoteFiles.length > 0 ? await filesToPayloadsWithProgress(quoteFiles) : undefined
+        const result = await enquiryService.markPoForReview(enquiry.id, payloads)
+        if (!result) {
+          setFormError('Could not move to Quote review.')
+          return
+        }
+        setQuoteFiles([])
+        setConfirmModalType(null)
+        setConfirmNote('')
+        reload()
+        setSuccessModal({
+          open: true,
+          title: 'Quote Submitted for Review',
+          message: 'Quotation document submitted for Supervisor / Admin verification.',
+        })
+      } else if (type === 'approve_quote_client') {
+        setTransitionText('Approving Quote…')
+        const result = await enquiryService.markPoForApproval(enquiry.id)
+        if (!result) {
+          setFormError('Could not approve Quote for client submission.')
+          return
+        }
+        setConfirmModalType(null)
+        setConfirmNote('')
+        reload()
+        setSuccessModal({
+          open: true,
+          title: 'Quote Approved for Client',
+          message: 'Quotation verified and approved for sending to the client.',
+        })
+      } else if (type === 'approve_quote_final') {
+        setTransitionText('Recording approval…')
+        const result = await enquiryService.approveDesign(enquiry.id)
+        if (!result) {
+          setFormError('Quote must be submitted to client before recording client approval.')
+          return
+        }
+        setConfirmModalType(null)
+        setConfirmNote('')
+        reload()
+        setSuccessModal({
+          open: true,
+          title: 'Client Approval Recorded',
+          message: 'Client approval recorded successfully! The enquiry is released to production.',
+        })
+      } else if (type === 'revert_design_step') {
+        setTransitionText('Stepping back…')
+        const result = await enquiryService.revertDesignWorkflowStep(enquiry.id, note)
+        if (!result) {
+          setFormError('Cannot step back from the current design stage.')
+          return
+        }
+        setConfirmModalType(null)
+        setConfirmNote('')
+        reload()
+        setSuccessModal({
+          open: true,
+          title: 'Workflow Stepped Back',
+          message: `Successfully stepped back to ${designRevertStepLabel(design.status).replace('Step back to ', '')}.`,
+        })
+      } else if (type === 'return_to_design') {
+        setTransitionText('Returning to design…')
+        const result = await enquiryService.returnToDesignFromApproval(enquiry.id, note)
+        if (!result) {
+          setFormError('Cannot return to design (fully delivered, dispatches in progress, or invalid stage).')
+          return
+        }
+        setConfirmModalType(null)
+        setConfirmNote('')
+        reload()
+        setSuccessModal({
+          open: true,
+          title: 'Returned to Design Stage',
+          message: 'Enquiry has returned to Design Review for engineering modifications.',
+        })
+      } else if (type === 'request_redesign') {
+        setTransitionText('Requesting redesign…')
+        const result = await enquiryService.requestDesignRevision(enquiry.id, note)
+        if (!result) {
+          setFormError('Cannot request redesign at this stage.')
+          return
+        }
+        setConfirmModalType(null)
+        setConfirmNote('')
+        reload()
+        setSuccessModal({
+          open: true,
+          title: 'Redesign Requested',
+          message: 'Design revision task created and sent back to the assigned designer.',
+        })
+      } else if (type === 'revert_order_step') {
+        if (!order) return
+        setTransitionText('Stepping back production…')
+        await orderService.revertOrderWorkflowStep(order.id, note)
+        setConfirmModalType(null)
+        setConfirmNote('')
+        reload()
+        setSuccessModal({
+          open: true,
+          title: 'Production Stepped Back',
+          message: 'Production order moved back to the previous workflow stage.',
+        })
       }
-      reload()
     } catch (err) {
-      setFormError(actionError(err, 'Failed to approve Quote for client submission'))
+      setFormError(actionError(err, 'Failed to complete action'))
     } finally {
       setTransitionBusy(false)
       setTransitionText('')
     }
   }
 
-  const handleApproveDesign = async () => {
-    if (transitionBusy) return
-    setFormError('')
-    setTransitionBusy(true)
-    setTransitionText('Recording approval…')
-    try {
-      const result = await enquiryService.approveDesign(enquiry.id)
-      if (!result) {
-        setFormError('Quote must be submitted to client before recording client approval.')
-        return
-      }
-      reload()
-    } catch (err) {
-      setFormError(actionError(err, 'Failed to approve Quote'))
-    } finally {
-      setTransitionBusy(false)
-      setTransitionText('')
-    }
-  }
-
-  const handleReturnToDesign = async () => {
-    if (transitionBusy) return
-    setFormError('')
-    setTransitionBusy(true)
-    setTransitionText('Returning to design…')
-    try {
-      const result = await enquiryService.returnToDesignFromApproval(
-        enquiry.id,
-        returnToDesignReason,
-      )
-      if (!result) {
-        setFormError(
-          'Cannot return to design (fully delivered, dispatches in progress, or invalid stage).',
-        )
-        return
-      }
-      setReturnToDesignReason('')
-      reload()
-    } catch (err) {
-      setFormError(actionError(err, 'Failed to return enquiry to design'))
-    } finally {
-      setTransitionBusy(false)
-      setTransitionText('')
-    }
-  }
-
-  const handleRequestRedesign = async () => {
-    if (transitionBusy) return
-    setFormError('')
-    setTransitionBusy(true)
-    setTransitionText('Requesting redesign…')
-    try {
-      const result = await enquiryService.requestDesignRevision(enquiry.id, revisionReason)
-      if (!result) {
-        setFormError('Cannot request redesign at this stage.')
-        return
-      }
-      setRevisionReason('')
-      reload()
-    } catch (err) {
-      setFormError(actionError(err, 'Failed to request redesign'))
-    } finally {
-      setTransitionBusy(false)
-      setTransitionText('')
-    }
-  }
-
-  const handleRevertDesignStep = async () => {
-    if (transitionBusy) return
-    setFormError('')
-    setTransitionBusy(true)
-    setTransitionText('Stepping back…')
-    try {
-      const result = await enquiryService.revertDesignWorkflowStep(enquiry.id, workflowNote)
-      if (!result) {
-        setFormError('Cannot step back from the current design stage.')
-        return
-      }
-      setWorkflowNote('')
-      reload()
-    } catch (err) {
-      setFormError(actionError(err, 'Failed to step back'))
-    } finally {
-      setTransitionBusy(false)
-      setTransitionText('')
-    }
-  }
-
-  const handleRevertOrderStep = async () => {
-    if (!order) return
-    setFormError('')
-    try {
-      await orderService.revertOrderWorkflowStep(order.id, workflowNote)
-      setWorkflowNote('')
-      reload()
-    } catch (err) {
-      setFormError(actionError(err, 'Failed to step back production'))
+  const getConfirmModalConfig = () => {
+    switch (confirmModalType) {
+      case 'submit_to_accounts':
+        return {
+          title: 'Submit Design to Accounts',
+          description: 'Submit the completed duct extraction and drawings to Accounts for quotation preparation?',
+          confirmText: 'Confirm & Submit',
+          variant: 'primary' as const,
+        }
+      case 'submit_quote_review':
+        return {
+          title: 'Submit Quote for Review',
+          description: 'Submit this Quote document for Supervisor and Admin review?',
+          confirmText: 'Submit for Review',
+          variant: 'primary' as const,
+        }
+      case 'approve_quote_client':
+        return {
+          title: 'Approve Quote for Client Submission',
+          description: 'Confirm that this quote has been checked and is ready to share with the client?',
+          confirmText: 'Approve Quote',
+          variant: 'primary' as const,
+        }
+      case 'approve_quote_final':
+        return {
+          title: 'Record Client Approval',
+          description: 'Confirm that the client has approved the quote? This will release the enquiry for customer order creation.',
+          confirmText: 'Confirm Client Approval',
+          variant: 'primary' as const,
+        }
+      case 'revert_design_step':
+        return {
+          title: designRevertStepLabel(design.status),
+          description: 'This will step back the quotation workflow to the previous step so updates can be made.',
+          confirmText: 'Confirm Step Back',
+          variant: 'warning' as const,
+          showNote: true,
+          noteLabel: 'Reason for step back (optional)',
+          notePlaceholder: 'Why is the workflow being stepped back?',
+        }
+      case 'return_to_design':
+        return {
+          title: 'Return Enquiry to Design',
+          description: 'Return this enquiry to the Design stage? The designer will be able to revise duct schedules and engineering files.',
+          confirmText: 'Return to Design',
+          variant: 'warning' as const,
+          showNote: true,
+          noteLabel: 'Reason for return to design (optional)',
+          notePlaceholder: 'Why is this enquiry being returned to design?',
+        }
+      case 'request_redesign':
+        return {
+          title: 'Request Redesign',
+          description: 'Request a design revision from the engineering team?',
+          confirmText: 'Request Redesign',
+          variant: 'warning' as const,
+          showNote: true,
+          noteLabel: 'Reason for redesign (optional)',
+          notePlaceholder: 'Describe the design changes required…',
+        }
+      case 'revert_order_step':
+        return {
+          title: order ? orderRevertStepLabel(order) : 'Step Back Production',
+          description: 'Step back the production order to the previous workflow stage?',
+          confirmText: 'Confirm Step Back',
+          variant: 'warning' as const,
+          showNote: true,
+          noteLabel: 'Production step-back note (optional)',
+          notePlaceholder: 'Why is production moving back?',
+        }
+      default:
+        return null
     }
   }
 
@@ -559,7 +625,7 @@ export function EnquiryDetailPage() {
     }
   }
 
-
+  const confirmModalConfig = getConfirmModalConfig()
 
   return (
 
@@ -597,10 +663,86 @@ export function EnquiryDetailPage() {
         <SimpleWorkflowStepper steps={steps} />
       </Card>
 
-      {showWorkflowAudit && enquiry.activity.length > 0 && (
+      {((showWorkflowAudit && enquiry.activity.length > 0) || hasAnyRevertAction) && (
         <Card>
           <h3 className="font-semibold mb-4">Workflow Progress</h3>
-          <WorkflowProgressSummary entries={enquiry.activity} />
+          {enquiry.activity.length > 0 && (
+            <WorkflowProgressSummary entries={enquiry.activity} />
+          )}
+
+          {hasAnyRevertAction && (
+            <div className={`${enquiry.activity.length > 0 ? 'mt-5 pt-4 border-t border-border' : ''}`}>
+              <div className="flex items-center gap-2 mb-1.5">
+                <RotateCcw className="w-4 h-4 text-warning" />
+                <h4 className="text-sm font-semibold text-text-primary">Workflow Reversion &amp; Corrections</h4>
+              </div>
+              <p className="text-xs text-text-secondary mb-3">
+                Need to make revisions or corrections? Use the options below to step back to an earlier stage.
+              </p>
+              <div className="flex flex-wrap gap-2.5">
+                {canRevertDesignStep && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => {
+                      setConfirmNote('')
+                      setConfirmModalType('revert_design_step')
+                    }}
+                    disabled={transitionBusy}
+                    className="border-warning/30 hover:bg-warning/10 text-warning"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5 mr-1" />
+                    {designRevertStepLabel(design.status)}
+                  </Button>
+                )}
+                {canReturnToDesign && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => {
+                      setConfirmNote('')
+                      setConfirmModalType('return_to_design')
+                    }}
+                    disabled={transitionBusy}
+                    className="border-warning/30 hover:bg-warning/10 text-warning"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5 mr-1" />
+                    Return to design
+                  </Button>
+                )}
+                {canRequestRedesign && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => {
+                      setConfirmNote('')
+                      setConfirmModalType('request_redesign')
+                    }}
+                    disabled={transitionBusy}
+                    className="border-warning/30 hover:bg-warning/10 text-warning"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5 mr-1" />
+                    Request redesign
+                  </Button>
+                )}
+                {canRevertOrder && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => {
+                      setConfirmNote('')
+                      setConfirmModalType('revert_order_step')
+                    }}
+                    disabled={transitionBusy}
+                    className="border-warning/30 hover:bg-warning/10 text-warning"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5 mr-1" />
+                    {order ? orderRevertStepLabel(order) : 'Step back production'}
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
         </Card>
       )}
 
@@ -1005,51 +1147,19 @@ export function EnquiryDetailPage() {
               <p className="text-sm text-text-secondary rounded-md border border-border bg-background px-3 py-2">
                 Quotation processing — accounts prepares and uploads the Quote (PDF/Excel), Admin or Supervisor
                 downloads and approves the Quote for submission to the client, then client approval is recorded. If
-                the client requests design changes, use <strong>Return to design</strong> below.
+                the client requests design changes, use <strong>Return to design</strong> in the Workflow Progress section above.
               </p>
-            )}
-
-            {canRequestRedesign && (
-              <Textarea
-                label="Reason for redesign (optional)"
-                value={revisionReason}
-                onChange={(e) => setRevisionReason(e.target.value)}
-                placeholder="e.g. Clarification needed on duct sizes before accounts can proceed"
-              />
-            )}
-
-            {canReturnToDesign && (
-              <Textarea
-                label="Reason for return to design (optional)"
-                value={returnToDesignReason}
-                onChange={(e) => setReturnToDesignReason(e.target.value)}
-                placeholder="e.g. Client Quote revision requested — revise duct schedule"
-              />
-            )}
-
-            {canRevertDesignStep && (
-              <Textarea
-                label="Quote step-back note (optional)"
-                value={workflowNote}
-                onChange={(e) => setWorkflowNote(e.target.value)}
-                placeholder="e.g. Quote details need correction before the next approval step"
-              />
             )}
 
             {design.reviewedBy && (
-
               <p className="text-sm text-text-secondary">
-
                 Approved by {design.reviewedBy} on {design.reviewDate ? formatDate(design.reviewDate) : '—'}
-
               </p>
-
             )}
 
             {formError && <p className="text-error text-sm">{formError}</p>}
 
             <div className="flex flex-wrap gap-3">
-
               {canEditExtraction && (
                 <Button
                   variant="secondary"
@@ -1069,14 +1179,20 @@ export function EnquiryDetailPage() {
                 )}
 
               {canSubmitToAccounts && (
-                <Button onClick={handleSubmitToAccounts} disabled={transitionBusy}>
+                <Button onClick={() => setConfirmModalType('submit_to_accounts')} disabled={transitionBusy}>
                   {transitionBusy && transitionText ? transitionText : 'Submit to accounts'}
                 </Button>
               )}
 
               {canMarkPoReview && (
                 <Button
-                  onClick={handleMarkPoReview}
+                  onClick={() => {
+                    if (!hasQuoteDocument) {
+                      setFormError('Upload a Quote document (PDF or Excel) before submitting for Quote review.')
+                      return
+                    }
+                    setConfirmModalType('submit_quote_review')
+                  }}
                   disabled={uploadingQuote || !hasQuoteDocument || transitionBusy}
                 >
                   {uploadingQuote ? 'Submitting Quote…' : 'Submit Quote for Review'}
@@ -1090,35 +1206,16 @@ export function EnquiryDetailPage() {
               )}
 
               {canMarkPoApproval && (
-                <Button onClick={handleMarkPoApproval} disabled={transitionBusy}>
+                <Button onClick={() => setConfirmModalType('approve_quote_client')} disabled={transitionBusy}>
                   {transitionBusy && transitionText ? transitionText : 'Approve Quote for Submission to Client'}
                 </Button>
               )}
 
               {canApprovePo && (
-                <Button onClick={handleApproveDesign} disabled={transitionBusy}>
+                <Button onClick={() => setConfirmModalType('approve_quote_final')} disabled={transitionBusy}>
                   {transitionBusy && transitionText ? transitionText : 'Approve Quote (Client Approved)'}
                 </Button>
               )}
-
-              {canRequestRedesign && (
-                <Button variant="secondary" onClick={handleRequestRedesign} disabled={transitionBusy}>
-                  Request redesign
-                </Button>
-              )}
-
-              {canRevertDesignStep && (
-                <Button variant="secondary" onClick={handleRevertDesignStep} disabled={transitionBusy}>
-                  {designRevertStepLabel(design.status)}
-                </Button>
-              )}
-
-              {canReturnToDesign && (
-                <Button variant="secondary" onClick={handleReturnToDesign} disabled={transitionBusy}>
-                  Return to design
-                </Button>
-              )}
-
             </div>
 
           </div>
@@ -1165,20 +1262,6 @@ export function EnquiryDetailPage() {
           )}
 
           <div className="flex flex-wrap gap-3 mt-6">
-            {canRevertOrder && (
-              <>
-                <Textarea
-                  label="Production step-back note (optional)"
-                  value={workflowNote}
-                  onChange={(e) => setWorkflowNote(e.target.value)}
-                  placeholder="Why production is moving to the previous stage"
-                />
-                <Button variant="secondary" onClick={handleRevertOrderStep}>
-                  {orderRevertStepLabel(order)}
-                </Button>
-              </>
-            )}
-
             {balanceQty > 0 &&
               order.status !== 'production' &&
               canAccessDispatchList(roles) && (
@@ -1186,14 +1269,9 @@ export function EnquiryDetailPage() {
                   Create Dispatch
                 </Button>
               )}
-
           </div>
-
         </Card>
-
       )}
-
-
 
       {showWorkflowAudit && (
         <Card>
@@ -1214,10 +1292,36 @@ export function EnquiryDetailPage() {
         </Card>
       )}
 
+      {confirmModalConfig && (
+        <WorkflowConfirmModal
+          open={Boolean(confirmModalType)}
+          onClose={() => {
+            setConfirmModalType(null)
+            setConfirmNote('')
+          }}
+          onConfirm={handleExecuteConfirmedAction}
+          title={confirmModalConfig.title}
+          description={confirmModalConfig.description}
+          confirmText={confirmModalConfig.confirmText}
+          variant={confirmModalConfig.variant}
+          busy={transitionBusy}
+          busyText={transitionText || 'Processing…'}
+          showNote={confirmModalConfig.showNote}
+          noteLabel={confirmModalConfig.noteLabel}
+          notePlaceholder={confirmModalConfig.notePlaceholder}
+          noteValue={confirmNote}
+          onNoteChange={setConfirmNote}
+        />
+      )}
+
+      <StepSuccessModal
+        open={successModal.open}
+        onClose={() => setSuccessModal((prev) => ({ ...prev, open: false }))}
+        title={successModal.title}
+        message={successModal.message}
+      />
     </div>
-
   )
-
 }
 
 
