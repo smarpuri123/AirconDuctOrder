@@ -13,6 +13,7 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:seed:demo": "tsx prisma/run-seed-demo.ts",
     "db:clear": "tsx prisma/clear-business-data.ts",
+    "db:clear-enquiries": "tsx prisma/clear-enquiry-operational-data.ts",
     "db:clear-legacy-enquiries": "tsx prisma/clear-legacy-enquiries.ts",
     "db:migrate-enquiry-numbers": "tsx prisma/migrate-enquiry-numbers.ts",
     "db:backfill-enquiry-intake": "tsx prisma/backfill-enquiry-intake.ts",
