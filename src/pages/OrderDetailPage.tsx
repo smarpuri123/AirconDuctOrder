@@ -252,22 +252,16 @@ export function OrderDetailPage() {
 
         <h3 className="font-semibold mb-4">Manufacturing</h3>
 
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-6 mb-4">
+        <div className="grid grid-cols-2 gap-6 mb-4">
           <div>
-            <p className="text-sm text-text-secondary">Ordered</p>
+            <p className="text-sm text-text-secondary">Ordered Quantity</p>
             <p className="text-2xl font-bold tabular-nums">{order.totalQuantity}</p>
           </div>
           <div>
-            <p className="text-sm text-text-secondary">Dispatched</p>
-            <p className="text-2xl font-bold tabular-nums text-primary">{dispatchedQty}</p>
-          </div>
-          <div>
-            <p className="text-sm text-text-secondary">Area</p>
+            <p className="text-sm text-text-secondary">Total Area</p>
             <p className="text-2xl font-bold tabular-nums">{formatArea(order.totalArea)}</p>
           </div>
         </div>
-
-        <ProgressBar value={dispatchedQty} max={order.totalQuantity} label="Dispatch Progress" />
 
         <ProductionProcessPanel
           order={order}

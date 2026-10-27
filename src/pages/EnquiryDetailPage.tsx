@@ -35,7 +35,6 @@ import { Input } from '@/components/ui/Input'
 
 import { Textarea } from '@/components/ui/Textarea'
 
-import { ProgressBar } from '@/components/ui/ProgressBar'
 import { ProductionProcessPanel } from '@/components/operations/ProductionProcessPanel'
 import type { ProductionProcess } from '@/types/production'
 
@@ -61,7 +60,7 @@ import type { Employee } from '@/types/org'
 import { Select } from '@/components/ui/Select'
 import { EnquiryDesignFiles } from '@/components/operations/EnquiryDesignFiles'
 import { DuctSchedulePanel } from '@/components/operations/DuctSchedulePanel'
-import { formatDate, getOrderBalanceQty, getOrderDispatchedQty } from '@/lib/calculations'
+import { formatDate, getOrderBalanceQty } from '@/lib/calculations'
 import {
   APPROVAL_PROCESSING_STATUSES,
   canEditDesignExtractionUi,
@@ -1340,14 +1339,6 @@ export function EnquiryDetailPage() {
               { label: 'Area', value: `${order.totalArea} m²` },
             ]}
           />
-
-          <div className="mt-4">
-            <ProgressBar
-              value={getOrderDispatchedQty(order)}
-              max={order.totalQuantity}
-              label="Dispatch Progress"
-            />
-          </div>
 
           {showProductionPanel && (
             <ProductionProcessPanel
