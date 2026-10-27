@@ -39,13 +39,29 @@ export function getDispatchProgress(order: Order): number {
   return Math.round((getOrderDispatchedQty(order) / order.totalQuantity) * 100)
 }
 
-export function computeOrderStatus(order: Order): OrderStatus {
+export function computeOrderStatus(order: Order, orderDispatches?: Dispatch[]): OrderStatus {
+  if (
+    order.status === 'closed' ||
+    order.status === 'cancelled' ||
+    order.status === 'draft' ||
+    order.status === 'imported'
+  ) {
+    return order.status
+  }
   const dispatched = getOrderDispatchedQty(order)
-  if (dispatched === 0) {
+  const trips = orderDispatches ?? []
+  if (dispatched === 0 && trips.length === 0) {
     if (order.status === 'production') return 'production'
     return 'ready'
   }
-  if (order.totalQuantity > 0 && dispatched >= order.totalQuantity) return 'fully_dispatched'
+  if (order.totalQuantity > 0 && dispatched >= order.totalQuantity) {
+    if (trips.length > 0) {
+      return trips.every((t) => normalizeDispatchStatus(t.status) === 'delivered')
+        ? 'fully_dispatched'
+        : 'partially_dispatched'
+    }
+    return order.status === 'fully_dispatched' ? 'fully_dispatched' : 'partially_dispatched'
+  }
   return 'partially_dispatched'
 }
 

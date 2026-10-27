@@ -55,6 +55,58 @@ function formatAccessoriesSummary(accessories?: DispatchAccessoriesPayload): str
   return parts.length > 0 ? ` · ${parts.join(', ')}` : ''
 }
 
+async function getTripNumber(
+  tx: Prisma.TransactionClient,
+  customerOrderId: string,
+  dispatchId: string,
+): Promise<number> {
+  const trips = await tx.dispatch.findMany({
+    where: { customerOrderId },
+    orderBy: { createdAt: 'asc' },
+    select: { id: true },
+  })
+  const idx = trips.findIndex((t) => t.id === dispatchId)
+  return idx >= 0 ? idx + 1 : Math.max(1, trips.length)
+}
+
+async function syncCustomerOrderStatusFromDispatches(
+  tx: Prisma.TransactionClient,
+  customerOrderId: string,
+  fallbackStatus: string,
+): Promise<{ isOrderCompleted: boolean; anyDispatched: boolean }> {
+  const [updatedItems, orderDispatches] = await Promise.all([
+    tx.customerOrderItem.findMany({ where: { customerOrderId } }),
+    tx.dispatch.findMany({
+      where: { customerOrderId },
+      select: { status: true },
+    }),
+  ])
+
+  const allQtyLoaded =
+    updatedItems.length > 0 && updatedItems.every((i) => i.dispatchedQty >= i.orderedQty)
+  const anyDispatched =
+    updatedItems.some((i) => i.dispatchedQty > 0) || orderDispatches.length > 0
+  const allTripsDelivered =
+    orderDispatches.length > 0 &&
+    orderDispatches.every((d) => d.status.toUpperCase() === 'DELIVERED')
+  const isOrderCompleted = allQtyLoaded && allTripsDelivered
+
+  if (fallbackStatus !== 'CLOSED' && fallbackStatus !== 'CANCELLED') {
+    await tx.customerOrder.update({
+      where: { id: customerOrderId },
+      data: {
+        status: isOrderCompleted
+          ? 'FULLY_DISPATCHED'
+          : anyDispatched
+            ? 'PARTIALLY_DISPATCHED'
+            : fallbackStatus,
+      },
+    })
+  }
+
+  return { isOrderCompleted, anyDispatched }
+}
+
 interface CreateDispatchInput {
   customerOrderId: string
   createdById: string
@@ -199,73 +251,54 @@ export async function createDispatch(input: CreateDispatchInput) {
         }
       }
 
-      const updatedItems = await tx.customerOrderItem.findMany({
-        where: { customerOrderId: input.customerOrderId },
-      })
-      const allDispatched = updatedItems.every((i) => i.dispatchedQty >= i.orderedQty)
-      const anyDispatched = updatedItems.some((i) => i.dispatchedQty > 0)
+      const { isOrderCompleted } = await syncCustomerOrderStatusFromDispatches(
+        tx,
+        input.customerOrderId,
+        order.status,
+      )
 
-      await tx.customerOrder.update({
-        where: { id: input.customerOrderId },
-        data: {
-          status: allDispatched
-            ? 'FULLY_DISPATCHED'
-            : anyDispatched
-              ? 'PARTIALLY_DISPATCHED'
-              : order.status,
-        },
-      })
-
-      const tripCount = await tx.dispatch.count({
-        where: { customerOrderId: input.customerOrderId },
-      })
+      const tripNumber = await getTripNumber(tx, input.customerOrderId, dispatch.id)
       const enquiry = await tx.enquiry.findFirst({
         where: { customerOrderId: input.customerOrderId },
       })
       if (enquiry) {
+        if (!isOrderCompleted) {
+          await tx.enquiryActivity.deleteMany({
+            where: { enquiryId: enquiry.id, phase: 'dispatch', title: 'Delivery completed' },
+          })
+        }
         const creator = await tx.user.findUnique({ where: { id: input.createdById } })
         await tx.enquiryActivity.create({
           data: {
             enquiryId: enquiry.id,
             phase: 'dispatch',
-            title: `Dispatch Trip ${tripCount} created`,
+            title: `Dispatch Trip ${tripNumber} loaded — Ready to deliver`,
             detail: `${dispatchNo} · ${totalQuantity} qty · ${input.vehicle.vehicleNumber}${formatAccessoriesSummary(input.accessories)}`,
             actor: creator?.name ?? 'Dispatch User',
             actorRole: 'Dispatch',
-            revision: tripCount,
+            revision: tripNumber,
           },
         })
-        if (allDispatched) {
-          await tx.enquiryActivity.create({
-            data: {
-              enquiryId: enquiry.id,
-              phase: 'dispatch',
-              title: 'Delivery completed',
-              detail: 'All quantities dispatched — order closed',
-              actor: creator?.name ?? 'Dispatch User',
-              actorRole: 'Dispatch',
-            },
-          })
-        }
       }
     } else {
-      const tripCount = await tx.dispatch.count({
-        where: { customerOrderId: input.customerOrderId },
-      })
+      const tripNumber = await getTripNumber(tx, input.customerOrderId, dispatch.id)
       const enquiry = await tx.enquiry.findFirst({
         where: { customerOrderId: input.customerOrderId },
       })
       if (enquiry) {
+        await tx.enquiryActivity.deleteMany({
+          where: { enquiryId: enquiry.id, phase: 'dispatch', title: 'Delivery completed' },
+        })
         const creator = await tx.user.findUnique({ where: { id: input.createdById } })
         await tx.enquiryActivity.create({
           data: {
             enquiryId: enquiry.id,
             phase: 'dispatch',
-            title: `Dispatch Trip ${tripCount} started (Loading)`,
+            title: `Dispatch Trip ${tripNumber} started (Loading)`,
             detail: `${dispatchNo} · Vehicle ${input.vehicle.vehicleNumber} (${input.vehicle.driverName})`,
             actor: creator?.name ?? 'Dispatch User',
             actorRole: 'Dispatch',
-            revision: tripCount,
+            revision: tripNumber,
           },
         })
       }
@@ -382,52 +415,43 @@ export async function saveDispatchLoad(
       },
     })
 
-    const updatedItems = await tx.customerOrderItem.findMany({
-      where: { customerOrderId: existing.customerOrderId },
-    })
-    const allDispatched = updatedItems.every((i) => i.dispatchedQty >= i.orderedQty)
-    const anyDispatched = updatedItems.some((i) => i.dispatchedQty > 0)
+    const { isOrderCompleted } = await syncCustomerOrderStatusFromDispatches(
+      tx,
+      existing.customerOrderId,
+      order.status,
+    )
 
-    await tx.customerOrder.update({
-      where: { id: existing.customerOrderId },
-      data: {
-        status: allDispatched
-          ? 'FULLY_DISPATCHED'
-          : anyDispatched
-            ? 'PARTIALLY_DISPATCHED'
-            : order.status,
-      },
-    })
-
-    const tripCount = await tx.dispatch.count({
-      where: { customerOrderId: existing.customerOrderId },
-    })
+    const tripNumber = await getTripNumber(tx, existing.customerOrderId, dispatchId)
     const enquiry = await tx.enquiry.findFirst({
       where: { customerOrderId: existing.customerOrderId },
     })
     if (enquiry) {
+      await tx.enquiryActivity.deleteMany({
+        where: { enquiryId: enquiry.id, phase: 'dispatch', title: 'Delivery completed' },
+      })
       const creator = input.actorUserId
         ? await tx.user.findUnique({ where: { id: input.actorUserId } })
         : null
+      const actorName = creator?.name ?? 'Dispatch User'
       await tx.enquiryActivity.create({
         data: {
           enquiryId: enquiry.id,
           phase: 'dispatch',
-          title: `Dispatch Trip ${tripCount} loaded — Ready to deliver`,
+          title: `Dispatch Trip ${tripNumber} loaded — Ready to deliver`,
           detail: `${existing.dispatchNo} · ${totalQuantity} qty · ${existing.vehicleNumber ?? ''}${formatAccessoriesSummary(input.accessories)}`,
-          actor: creator?.name ?? 'Dispatch User',
+          actor: actorName,
           actorRole: 'Dispatch',
-          revision: tripCount,
+          revision: tripNumber,
         },
       })
-      if (allDispatched) {
+      if (isOrderCompleted) {
         await tx.enquiryActivity.create({
           data: {
             enquiryId: enquiry.id,
             phase: 'dispatch',
             title: 'Delivery completed',
             detail: 'All quantities dispatched — order closed',
-            actor: creator?.name ?? 'Dispatch User',
+            actor: actorName,
             actorRole: 'Dispatch',
           },
         })
@@ -461,43 +485,121 @@ export async function getDispatchById(id: string) {
 
 const DISPATCH_STATUSES = ['DRAFT', 'LOADING', 'LOADED', 'DISPATCHED', 'DELIVERED'] as const
 
-export async function updateDispatchStatus(id: string, status: string) {
+export async function updateDispatchStatus(id: string, status: string, actorUserId?: string) {
   const normalized = status.toUpperCase().replace(/-/g, '_')
   if (!DISPATCH_STATUSES.includes(normalized as (typeof DISPATCH_STATUSES)[number])) {
     throw new Error('Invalid dispatch status')
   }
 
-  const existing = await prisma.dispatch.findUnique({
-    where: { id },
-    include: { items: true },
-  })
-  if (!existing) throw new Error('Dispatch not found')
+  return runTransactionWithRetry(async (tx) => {
+    const existing = await tx.dispatch.findUnique({
+      where: { id },
+      include: { items: true },
+    })
+    if (!existing) throw new Error('Dispatch not found')
 
-  const rawCurrent = existing.status.toUpperCase().replace(/-/g, '_')
-  const currentStatus = (
-    rawCurrent === 'LOADING' && existing.items.length > 0 ? 'LOADED' : rawCurrent
-  ) as (typeof DISPATCH_STATUSES)[number]
-  const currentIdx = DISPATCH_STATUSES.indexOf(currentStatus)
-  const targetIdx = DISPATCH_STATUSES.indexOf(normalized as (typeof DISPATCH_STATUSES)[number])
-  if (currentIdx < 0 || targetIdx !== currentIdx + 1) {
-    throw new Error('Dispatch can only move forward to the next stage')
-  }
+    await tx.$executeRaw`
+      SELECT id FROM customer_orders WHERE id = ${existing.customerOrderId} FOR UPDATE
+    `
 
-  const updated = await prisma.dispatch.updateMany({
-    where: { id, status: existing.status },
-    data: { status: normalized },
-  })
-  if (updated.count !== 1) {
-    throw new Error('Dispatch status was updated by another request — refresh and retry')
-  }
+    const rawCurrent = existing.status.toUpperCase().replace(/-/g, '_')
+    const currentStatus = (
+      rawCurrent === 'LOADING' && existing.items.length > 0 ? 'LOADED' : rawCurrent
+    ) as (typeof DISPATCH_STATUSES)[number]
+    const currentIdx = DISPATCH_STATUSES.indexOf(currentStatus)
+    const targetIdx = DISPATCH_STATUSES.indexOf(normalized as (typeof DISPATCH_STATUSES)[number])
+    if (currentIdx < 0 || targetIdx !== currentIdx + 1) {
+      throw new Error('Dispatch can only move forward to the next stage')
+    }
 
-  const dispatch = await prisma.dispatch.findUnique({
-    where: { id },
-    include: {
-      customerOrder: { include: { customer: true } },
-      items: { include: { customerOrderItem: true } },
-    },
+    const updated = await tx.dispatch.updateMany({
+      where: { id, status: existing.status },
+      data: { status: normalized },
+    })
+    if (updated.count !== 1) {
+      throw new Error('Dispatch status was updated by another request — refresh and retry')
+    }
+
+    const order = await tx.customerOrder.findUnique({
+      where: { id: existing.customerOrderId },
+      select: { status: true },
+    })
+
+    const { isOrderCompleted } = await syncCustomerOrderStatusFromDispatches(
+      tx,
+      existing.customerOrderId,
+      order?.status ?? 'READY',
+    )
+
+    const enquiry = await tx.enquiry.findFirst({
+      where: { customerOrderId: existing.customerOrderId },
+    })
+    if (enquiry) {
+      await tx.enquiryActivity.deleteMany({
+        where: { enquiryId: enquiry.id, phase: 'dispatch', title: 'Delivery completed' },
+      })
+
+      const tripNumber = await getTripNumber(tx, existing.customerOrderId, id)
+      const actor = actorUserId
+        ? await tx.user.findUnique({ where: { id: actorUserId } })
+        : null
+      const actorName = actor?.name ?? 'Dispatch User'
+      const decoded = decodeRemarksWithAccessories(existing.remarks)
+      const vehicleSummary = existing.vehicleNumber
+        ? `Vehicle ${existing.vehicleNumber}${existing.driverName ? ` (${existing.driverName})` : ''}`
+        : ''
+
+      let activityTitle: string | null = null
+      let activityDetail = `${existing.dispatchNo} · ${existing.totalQuantity} qty${vehicleSummary ? ` · ${vehicleSummary}` : ''}`
+
+      if (normalized === 'LOADING') {
+        activityTitle = `Dispatch Trip ${tripNumber} started (Loading)`
+        activityDetail = `${existing.dispatchNo}${vehicleSummary ? ` · ${vehicleSummary}` : ''}`
+      } else if (normalized === 'LOADED') {
+        activityTitle = `Dispatch Trip ${tripNumber} loaded — Ready to deliver`
+        activityDetail = `${existing.dispatchNo} · ${existing.totalQuantity} qty · ${existing.vehicleNumber ?? ''}${formatAccessoriesSummary(decoded.accessories)}`
+      } else if (normalized === 'DISPATCHED') {
+        activityTitle = `Dispatch Trip ${tripNumber} dispatched`
+      } else if (normalized === 'DELIVERED') {
+        activityTitle = `Dispatch Trip ${tripNumber} delivered`
+      }
+
+      if (activityTitle) {
+        await tx.enquiryActivity.create({
+          data: {
+            enquiryId: enquiry.id,
+            phase: 'dispatch',
+            title: activityTitle,
+            detail: activityDetail,
+            actor: actorName,
+            actorRole: 'Dispatch',
+            revision: tripNumber,
+          },
+        })
+      }
+
+      if (isOrderCompleted) {
+        await tx.enquiryActivity.create({
+          data: {
+            enquiryId: enquiry.id,
+            phase: 'dispatch',
+            title: 'Delivery completed',
+            detail: 'All quantities dispatched — order closed',
+            actor: actorName,
+            actorRole: 'Dispatch',
+          },
+        })
+      }
+    }
+
+    const dispatch = await tx.dispatch.findUnique({
+      where: { id },
+      include: {
+        customerOrder: { include: { customer: true } },
+        items: { include: { customerOrderItem: true } },
+      },
+    })
+    if (!dispatch) throw new Error('Dispatch not found')
+    return dispatch
   })
-  if (!dispatch) throw new Error('Dispatch not found')
-  return dispatch
 }

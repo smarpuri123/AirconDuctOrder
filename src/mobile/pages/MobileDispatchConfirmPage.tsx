@@ -72,8 +72,16 @@ export function MobileDispatchConfirmPage() {
       </div>
 
       {balance === 0 && (
-        <p className="bg-success-bg text-success font-semibold rounded-xl py-3 px-4">
-          Order fully dispatched
+        <p
+          className={`${
+            order.status === 'fully_dispatched'
+              ? 'bg-success-bg text-success'
+              : 'bg-primary/10 text-primary'
+          } font-semibold rounded-xl py-3 px-4 text-sm`}
+        >
+          {order.status === 'fully_dispatched'
+            ? 'Order fully delivered'
+            : 'All order quantities loaded — mark trips Delivered to complete order'}
         </p>
       )}
 

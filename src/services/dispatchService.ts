@@ -2,8 +2,7 @@ import dispatchesSeed from '@/data/dispatches.json'
 import { api, isApiMode } from '@/lib/api'
 import {
   getCachedDispatches,
-  refreshDispatches,
-  refreshOrders,
+  refreshAll,
   setCachedDispatches,
 } from '@/lib/dataCache'
 import { loadFromStorage, saveToStorage } from '@/lib/storage'
@@ -50,6 +49,14 @@ function getNextDispatchNo(): string {
   return `D-2026-${String(next).padStart(4, '0')}`
 }
 
+function getTripNumberForDispatch(orderId: string, dispatchId: string): number {
+  const trips = getDispatchesData()
+    .filter((d) => d.orderId === orderId)
+    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+  const idx = trips.findIndex((t) => t.id === dispatchId)
+  return idx >= 0 ? idx + 1 : Math.max(1, trips.length)
+}
+
 export const dispatchService = {
   getDispatches(): Dispatch[] {
     return getDispatchesData()
@@ -94,7 +101,7 @@ export const dispatchService = {
           items: {},
         }),
       })
-      await Promise.all([refreshOrders(), refreshDispatches()])
+      await refreshAll()
       return dispatch
     }
 
@@ -119,8 +126,9 @@ export const dispatchService = {
     const dispatches = getDispatchesData()
     dispatches.push(dispatch)
     persistDispatches(dispatches)
+    orderService.syncOrderStatus(orderId)
 
-    const tripNumber = this.getDispatchesByOrderId(orderId).length
+    const tripNumber = getTripNumberForDispatch(orderId, dispatch.id)
     const user = getCurrentUser()
     enquiryService.appendActivityByOrderId(orderId, {
       phase: 'dispatch',
@@ -148,7 +156,7 @@ export const dispatchService = {
           accessories,
         }),
       })
-      await Promise.all([refreshOrders(), refreshDispatches()])
+      await refreshAll()
       return dispatch
     }
 
@@ -220,7 +228,7 @@ export const dispatchService = {
     persistDispatches(dispatches)
     orderService.updateItemDispatchedQty(order.id, itemUpdates)
 
-    const tripNumber = this.getDispatchesByOrderId(order.id).length
+    const tripNumber = getTripNumberForDispatch(order.id, dispatchId)
     const user = getCurrentUser()
     enquiryService.appendActivityByOrderId(order.id, {
       phase: 'dispatch',
@@ -266,7 +274,7 @@ export const dispatchService = {
           accessories,
         }),
       })
-      await Promise.all([refreshOrders(), refreshDispatches()])
+      await refreshAll()
       return dispatch
     }
 
@@ -280,7 +288,7 @@ export const dispatchService = {
         method: 'PATCH',
         body: JSON.stringify({ status }),
       })
-      await refreshDispatches()
+      await refreshAll()
       return dispatch
     }
 
@@ -291,9 +299,46 @@ export const dispatchService = {
     if (!canTransitionDispatchTo(current, status)) {
       throw new Error('Dispatch can only move forward to the next stage')
     }
-    dispatches[idx] = { ...dispatches[idx], status }
+    const updated = { ...dispatches[idx], status }
+    dispatches[idx] = updated
     persistDispatches(dispatches)
-    return dispatches[idx]
+
+    const updatedOrder = orderService.syncOrderStatus(updated.orderId)
+    const tripNumber = getTripNumberForDispatch(updated.orderId, updated.id)
+    const user = getCurrentUser()
+    const vehicleDetail = `${updated.dispatchNo} · ${updated.totalQuantity} qty · Vehicle ${updated.vehicle.vehicleNumber} (${updated.vehicle.driverName})`
+
+    if (status === 'dispatched') {
+      enquiryService.appendActivityByOrderId(updated.orderId, {
+        phase: 'dispatch',
+        title: `Dispatch Trip ${tripNumber} dispatched`,
+        detail: vehicleDetail,
+        actor: user.name,
+        actorRole: user.role,
+        revision: tripNumber,
+      })
+    } else if (status === 'delivered') {
+      enquiryService.appendActivityByOrderId(updated.orderId, {
+        phase: 'dispatch',
+        title: `Dispatch Trip ${tripNumber} delivered`,
+        detail: vehicleDetail,
+        actor: user.name,
+        actorRole: user.role,
+        revision: tripNumber,
+      })
+    }
+
+    if (updatedOrder?.status === 'fully_dispatched') {
+      enquiryService.appendActivityByOrderId(updated.orderId, {
+        phase: 'dispatch',
+        title: 'Delivery completed',
+        detail: 'All quantities dispatched — order closed',
+        actor: user.name,
+        actorRole: user.role,
+      })
+    }
+
+    return updated
   },
 
   resetToSeed(): void {

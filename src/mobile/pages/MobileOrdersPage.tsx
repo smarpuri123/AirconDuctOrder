@@ -14,7 +14,14 @@ export function MobileOrdersPage() {
   const orders = useMemo(() => {
     let list = orderService
       .getOrders()
-      .filter((o) => getOrderBalanceQty(o) > 0 && o.status !== 'production')
+      .filter(
+        (o) =>
+          (getOrderBalanceQty(o) > 0 || o.status === 'partially_dispatched') &&
+          o.status !== 'production' &&
+          o.status !== 'fully_dispatched' &&
+          o.status !== 'closed' &&
+          o.status !== 'cancelled',
+      )
       .sort((a, b) => a.orderNo.localeCompare(b.orderNo))
     if (!search.trim()) return list
     const q = search.toLowerCase()

@@ -442,6 +442,21 @@ function dispatchNodes(dispatches: Dispatch[], orderId: string | undefined): Wor
     }))
 }
 
+function isOrderDeliveryComplete(
+  order: Order | undefined,
+  nodes: WorkflowDispatchNode[],
+  dispatchedQty: number,
+  totalOrderQty: number,
+): boolean {
+  if (!order) return false
+  if (order.status === 'closed') return true
+  if (totalOrderQty <= 0 || dispatchedQty < totalOrderQty) return false
+  if (nodes.length > 0) {
+    return nodes.every((n) => n.status === 'delivered')
+  }
+  return order.status === 'fully_dispatched'
+}
+
 function dispatchSummary(
   order: Order | undefined,
   nodes: WorkflowDispatchNode[],
@@ -449,7 +464,7 @@ function dispatchSummary(
   totalOrderQty: number,
 ): WorkflowCellStatus {
   if (!order) return 'pending'
-  if ((totalOrderQty > 0 && dispatchedQty >= totalOrderQty) || order.status === 'closed') {
+  if (isOrderDeliveryComplete(order, nodes, dispatchedQty, totalOrderQty)) {
     return 'completed'
   }
   if (
@@ -465,14 +480,15 @@ function dispatchSummary(
 function terminalCell(
   enquiry: Enquiry,
   order: Order | undefined,
+  nodes: WorkflowDispatchNode[],
   dispatchedQty: number,
   totalOrderQty: number,
 ): WorkflowStageCell {
   const complete =
-    (totalOrderQty > 0 && dispatchedQty >= totalOrderQty) ||
-    order?.status === 'closed' ||
+    isOrderDeliveryComplete(order, nodes, dispatchedQty, totalOrderQty) ||
     (!order && enquiry.stage === 'completed')
   const pendingQty = Math.max(0, totalOrderQty - dispatchedQty)
+  const deliveredTrips = nodes.filter((n) => n.status === 'delivered').length
 
   return {
     id: 'order_complete',
@@ -486,7 +502,9 @@ function terminalCell(
       totalOrderQty > 0
         ? complete
           ? `All ${totalOrderQty}/${totalOrderQty} ducts dispatched`
-          : `${dispatchedQty}/${totalOrderQty} dispatched · ${pendingQty} pending`
+          : pendingQty === 0 && nodes.length > 0
+            ? `${dispatchedQty}/${totalOrderQty} loaded · ${deliveredTrips}/${nodes.length} trips delivered`
+            : `${dispatchedQty}/${totalOrderQty} dispatched · ${pendingQty} pending`
         : undefined,
   }
 }
@@ -514,7 +532,7 @@ export function buildEnquiryWorkflowRow(
 
   const design = designCellStatuses(enquiry)
   const arc = accountsAndProductionCells(enquiry, order, dispatchedQty, totalOrderQty)
-  const terminal = terminalCell(enquiry, order, dispatchedQty, totalOrderQty)
+  const terminal = terminalCell(enquiry, order, dispatchList, dispatchedQty, totalOrderQty)
   const cells = [...design, ...arc, terminal]
 
   return {

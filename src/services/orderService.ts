@@ -1,6 +1,8 @@
 import ordersSeed from '@/data/orders.json'
+import dispatchesSeed from '@/data/dispatches.json'
 import { api, isApiMode } from '@/lib/api'
 import {
+  getCachedDispatches,
   getCachedOrders,
   refreshAll,
   refreshOrders,
@@ -22,7 +24,14 @@ import { enquiryService } from './enquiryService'
 import type { Enquiry } from '@/types/enquiry'
 import type { ProductionTrackAction } from '@/lib/productionTrack'
 import { getProductionTrackStatus } from '@/lib/productionTrack'
-import type { Order, OrderFilter, OrderItem } from '@/types'
+import type { Dispatch, Order, OrderFilter, OrderItem } from '@/types'
+
+function getOrderDispatches(orderId: string): Dispatch[] {
+  const list = isApiMode
+    ? (getCachedDispatches() ?? [])
+    : loadFromStorage('dispatches', dispatchesSeed as Dispatch[])
+  return list.filter((d) => d.orderId === orderId)
+}
 
 function getOrdersData(): Order[] {
   if (isApiMode) {
@@ -45,7 +54,7 @@ function withComputedOrder(order: Order): Order {
   return {
     ...order,
     items: sortOrderItemsByTagNo(order.items),
-    status: computeOrderStatus(order),
+    status: computeOrderStatus(order, getOrderDispatches(order.id)),
   }
 }
 
@@ -121,9 +130,22 @@ export const orderService = {
       if (!update) return item
       return { ...item, dispatchedQty: item.dispatchedQty + update.quantity }
     })
-    order.status = computeOrderStatus(order)
+    order.status = computeOrderStatus(order, getOrderDispatches(orderId))
     orders[orderIndex] = order
     persistOrders(orders)
+  },
+
+  syncOrderStatus(orderId: string): Order | undefined {
+    const orders = getOrdersData()
+    const orderIndex = orders.findIndex((o) => o.id === orderId)
+    if (orderIndex === -1) return undefined
+    const order = {
+      ...orders[orderIndex],
+      status: computeOrderStatus(orders[orderIndex], getOrderDispatches(orderId)),
+    }
+    orders[orderIndex] = order
+    persistOrders(orders)
+    return withComputedOrder(order)
   },
 
   async refresh(): Promise<void> {

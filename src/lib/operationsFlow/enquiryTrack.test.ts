@@ -169,4 +169,96 @@ describe('buildEnquiryWorkflowRow', () => {
     expect(row.cells.find((c) => c.id === 'order_complete')?.status).toBe('pending')
     expect(row.cells.find((c) => c.id === 'order_complete')?.detail).toContain('5/110 dispatched')
   })
+
+  it('does not mark order_complete completed when all quantities are loaded across trips that are not yet delivered', () => {
+    const enquiry = baseEnquiry({
+      enquiryNo: 'ABC-CONSTRUCTION-SP123-0002',
+      orderId: 'ord-2',
+      stage: 'dispatch',
+      designReview: { status: 'approved', revision: 1, totalQty: 194 },
+    })
+    const order = {
+      id: 'ord-2',
+      orderNo: 'ORD-2',
+      jobName: 'ORD-2',
+      customerId: 'cust-1',
+      customerName: 'ABC Construction',
+      productionDate: '2026-01-01',
+      totalQuantity: 194,
+      totalArea: 200,
+      status: 'partially_dispatched' as const,
+      revision: 1,
+      productionApproved: true,
+      straightDuctsCompleted: true,
+      plasmaDuctsCompleted: true,
+      createdAt: '2026-01-01T00:00:00Z',
+      items: [
+        {
+          id: 'item-2',
+          orderId: 'ord-2',
+          tagNo: 1,
+          description: 'ST',
+          w1: 500,
+          h1: 300,
+          w2: 500,
+          h2: 300,
+          length: 1120,
+          orderedQty: 194,
+          area: 200,
+          producedQty: 194,
+          readyQty: 194,
+          dispatchedQty: 194,
+        },
+      ],
+    }
+    const baseTrip = {
+      orderId: 'ord-2',
+      orderNo: 'ORD-2',
+      customerName: 'ABC Construction',
+      vehicle: {
+        vehicleNumber: 'KA-01-1234',
+        driverName: 'Driver',
+        driverMobile: '9999999999',
+        transporter: 'Transporter',
+        vehicleType: 'Truck',
+        loadingDate: '2026-01-02',
+        loadingTime: '10:00',
+      },
+      items: [],
+      totalArea: 100,
+      dispatchDate: '2026-01-02',
+    }
+    const loadedTrips = [
+      {
+        ...baseTrip,
+        id: 'disp-1',
+        dispatchNo: 'D-2026-0003',
+        totalQuantity: 4,
+        status: 'loaded' as const,
+        createdAt: '2026-01-02T10:00:00Z',
+      },
+      {
+        ...baseTrip,
+        id: 'disp-2',
+        dispatchNo: 'D-2026-0004',
+        totalQuantity: 190,
+        status: 'loaded' as const,
+        createdAt: '2026-01-02T11:00:00Z',
+      },
+    ]
+
+    const loadedRow = buildEnquiryWorkflowRow(enquiry, order, loadedTrips)
+    expect(loadedRow.dispatchSummaryStatus).toBe('active')
+    expect(loadedRow.cells.find((c) => c.id === 'order_complete')?.status).toBe('pending')
+    expect(loadedRow.cells.find((c) => c.id === 'order_complete')?.detail).toContain('0/2 trips delivered')
+
+    const deliveredTrips = loadedTrips.map((t) => ({ ...t, status: 'delivered' as const }))
+    const deliveredRow = buildEnquiryWorkflowRow(
+      enquiry,
+      { ...order, status: 'fully_dispatched' },
+      deliveredTrips,
+    )
+    expect(deliveredRow.dispatchSummaryStatus).toBe('completed')
+    expect(deliveredRow.cells.find((c) => c.id === 'order_complete')?.status).toBe('completed')
+  })
 })

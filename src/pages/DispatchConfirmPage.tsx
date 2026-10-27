@@ -111,8 +111,16 @@ export function DispatchConfirmPage() {
       </Card>
 
       {balance === 0 && (
-        <div className="bg-success-bg text-success rounded-md py-3 px-4 font-semibold">
-          ✓ ORDER FULLY DISPATCHED
+        <div
+          className={`${
+            order.status === 'fully_dispatched'
+              ? 'bg-success-bg text-success'
+              : 'bg-primary/10 text-primary'
+          } rounded-md py-3 px-4 font-semibold text-sm`}
+        >
+          {order.status === 'fully_dispatched'
+            ? '✓ ORDER FULLY DELIVERED'
+            : 'All order quantities loaded — mark trips Delivered to complete order'}
         </div>
       )}
 

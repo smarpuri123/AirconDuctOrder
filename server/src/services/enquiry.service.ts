@@ -37,7 +37,12 @@ const enquiryInclude = {
   ductLines: { orderBy: { sortOrder: 'asc' as const } },
   personInCharge: employeeWithUser,
   currentAssignee: employeeWithUser,
-  customerOrder: { include: { items: true } },
+  customerOrder: {
+    include: {
+      items: true,
+      dispatches: { select: { id: true, status: true, totalQuantity: true } },
+    },
+  },
 }
 
 function formatRevision(revision: number): string {

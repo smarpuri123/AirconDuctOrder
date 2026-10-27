@@ -30,6 +30,7 @@ type EnquiryWithRelations = Enquiry & {
     status: string
     totalQuantity: number
     items: CustomerOrderItem[]
+    dispatches?: { status: string }[]
   } | null
 }
 
@@ -60,6 +61,7 @@ type OrderWithItems = {
   plasmaDuctsCompletedBy: string | null
   createdAt: Date
   items: CustomerOrderItem[]
+  dispatches?: { status: string }[]
 }
 
 export function mapDbOrderStatus(status: string): string {
@@ -91,10 +93,29 @@ export function mapFrontendOrderStatus(status: string): string {
   return map[status] ?? status.toUpperCase()
 }
 
-function computeFrontendOrderStatus(order: OrderWithItems): string {
+function isOrderDeliveryCompleted(order: {
+  status: string
+  totalQuantity: number
+  items: CustomerOrderItem[]
+  dispatches?: { status: string }[]
+}): boolean {
+  if (order.status === 'CLOSED') return true
   const dispatched = order.items.reduce((s, i) => s + i.dispatchedQty, 0)
-  if (dispatched >= order.totalQuantity && order.totalQuantity > 0) return 'fully_dispatched'
-  if (dispatched > 0) return 'partially_dispatched'
+  if (order.totalQuantity <= 0 || dispatched < order.totalQuantity) return false
+  const dispatches = order.dispatches ?? []
+  if (dispatches.length > 0) {
+    return dispatches.every((d) => d.status.toUpperCase() === 'DELIVERED')
+  }
+  return order.status === 'FULLY_DISPATCHED'
+}
+
+function computeFrontendOrderStatus(order: OrderWithItems): string {
+  if (order.status === 'CLOSED') return 'closed'
+  if (order.status === 'CANCELLED') return 'cancelled'
+  const dispatched = order.items.reduce((s, i) => s + i.dispatchedQty, 0)
+  if (isOrderDeliveryCompleted(order)) return 'fully_dispatched'
+  const hasTrips = (order.dispatches?.length ?? 0) > 0
+  if (dispatched > 0 || hasTrips) return 'partially_dispatched'
   const base = mapDbOrderStatus(order.status)
   if (base === 'production' || base === 'confirmed') return 'production'
   return base === 'ready' ? 'ready' : base
@@ -233,10 +254,11 @@ function computeEnquiryStage(enquiry: EnquiryWithRelations): string {
 
   const order = enquiry.customerOrder
   const dispatched = order.items.reduce((s, i) => s + i.dispatchedQty, 0)
+  const hasTrips = (order.dispatches?.length ?? 0) > 0
   const status = mapDbOrderStatus(order.status)
 
-  if ((order.totalQuantity > 0 && dispatched >= order.totalQuantity) || status === 'closed') return 'completed'
-  if (dispatched > 0 || status === 'partially_dispatched' || status === 'ready') return 'dispatch'
+  if (isOrderDeliveryCompleted(order) || status === 'closed') return 'completed'
+  if (dispatched > 0 || hasTrips || status === 'partially_dispatched' || status === 'ready') return 'dispatch'
   if (status === 'production' || status === 'in_production') return 'manufacturing'
   return 'order'
 }
@@ -367,6 +389,17 @@ export function mapEnquiryToFrontend(enquiry: EnquiryWithRelations) {
     },
     orderId: enquiry.customerOrderId,
     activity: enquiry.activities
+      .filter((a) => {
+        if (
+          a.phase === 'dispatch' &&
+          a.title === 'Delivery completed' &&
+          enquiry.customerOrder &&
+          !isOrderDeliveryCompleted(enquiry.customerOrder)
+        ) {
+          return false
+        }
+        return true
+      })
       .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
       .map((a) => ({
         id: a.id,

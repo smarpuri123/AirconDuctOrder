@@ -135,7 +135,7 @@ export async function dispatchRoutes(app: FastifyInstance) {
       const { status } = z.object({ status: z.string().min(1) }).parse(request.body)
 
       try {
-        const dispatch = await updateDispatchStatus(id, status)
+        const dispatch = await updateDispatchStatus(id, status, request.authUser?.id)
         notifyDispatchStatusUpdated({
           dispatchId: dispatch.id,
           dispatchNo: dispatch.dispatchNo,
