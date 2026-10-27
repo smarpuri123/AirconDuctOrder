@@ -106,6 +106,8 @@ export function EnquiryDetailPage() {
   const [quoteFiles, setQuoteFiles] = useState<File[]>([])
   const [uploadingQuote, setUploadingQuote] = useState(false)
   const [uploadingDesignOutput, setUploadingDesignOutput] = useState(false)
+  const [transitionBusy, setTransitionBusy] = useState(false)
+  const [transitionText, setTransitionText] = useState('')
   const quoteInputRef = useRef<HTMLInputElement>(null)
   const designOutputInputRef = useRef<HTMLInputElement>(null)
 
@@ -336,7 +338,10 @@ export function EnquiryDetailPage() {
 
 
   const handleSubmitToAccounts = async () => {
+    if (transitionBusy) return
     setFormError('')
+    setTransitionBusy(true)
+    setTransitionText('Submitting to accounts…')
     try {
       const result = await enquiryService.submitDesignToAccounts(enquiry.id)
       if (!result) {
@@ -346,11 +351,14 @@ export function EnquiryDetailPage() {
       reload()
     } catch (err) {
       setFormError(actionError(err, 'Failed to submit to accounts'))
+    } finally {
+      setTransitionBusy(false)
+      setTransitionText('')
     }
   }
 
   const handleUploadDesignOutput = async (fileList: FileList | null) => {
-    if (!fileList || fileList.length === 0) return
+    if (!fileList || fileList.length === 0 || uploadingDesignOutput) return
     setFormError('')
     setUploadingDesignOutput(true)
     try {
@@ -365,7 +373,7 @@ export function EnquiryDetailPage() {
   }
 
   const handleUploadQuoteFiles = async (fileList: FileList | null) => {
-    if (!fileList || fileList.length === 0) return
+    if (!fileList || fileList.length === 0 || uploadingQuote) return
     setFormError('')
     setUploadingQuote(true)
     try {
@@ -380,6 +388,7 @@ export function EnquiryDetailPage() {
   }
 
   const handleMarkPoReview = async () => {
+    if (uploadingQuote) return
     setFormError('')
     if (!hasQuoteDocument) {
       setFormError('Upload a Quote document (PDF or Excel) before submitting for Quote review.')
@@ -403,7 +412,10 @@ export function EnquiryDetailPage() {
   }
 
   const handleMarkPoApproval = async () => {
+    if (transitionBusy) return
     setFormError('')
+    setTransitionBusy(true)
+    setTransitionText('Approving Quote…')
     try {
       const result = await enquiryService.markPoForApproval(enquiry.id)
       if (!result) {
@@ -413,11 +425,17 @@ export function EnquiryDetailPage() {
       reload()
     } catch (err) {
       setFormError(actionError(err, 'Failed to approve Quote for client submission'))
+    } finally {
+      setTransitionBusy(false)
+      setTransitionText('')
     }
   }
 
   const handleApproveDesign = async () => {
+    if (transitionBusy) return
     setFormError('')
+    setTransitionBusy(true)
+    setTransitionText('Recording approval…')
     try {
       const result = await enquiryService.approveDesign(enquiry.id)
       if (!result) {
@@ -427,11 +445,17 @@ export function EnquiryDetailPage() {
       reload()
     } catch (err) {
       setFormError(actionError(err, 'Failed to approve Quote'))
+    } finally {
+      setTransitionBusy(false)
+      setTransitionText('')
     }
   }
 
   const handleReturnToDesign = async () => {
+    if (transitionBusy) return
     setFormError('')
+    setTransitionBusy(true)
+    setTransitionText('Returning to design…')
     try {
       const result = await enquiryService.returnToDesignFromApproval(
         enquiry.id,
@@ -447,11 +471,17 @@ export function EnquiryDetailPage() {
       reload()
     } catch (err) {
       setFormError(actionError(err, 'Failed to return enquiry to design'))
+    } finally {
+      setTransitionBusy(false)
+      setTransitionText('')
     }
   }
 
   const handleRequestRedesign = async () => {
+    if (transitionBusy) return
     setFormError('')
+    setTransitionBusy(true)
+    setTransitionText('Requesting redesign…')
     try {
       const result = await enquiryService.requestDesignRevision(enquiry.id, revisionReason)
       if (!result) {
@@ -462,11 +492,17 @@ export function EnquiryDetailPage() {
       reload()
     } catch (err) {
       setFormError(actionError(err, 'Failed to request redesign'))
+    } finally {
+      setTransitionBusy(false)
+      setTransitionText('')
     }
   }
 
   const handleRevertDesignStep = async () => {
+    if (transitionBusy) return
     setFormError('')
+    setTransitionBusy(true)
+    setTransitionText('Stepping back…')
     try {
       const result = await enquiryService.revertDesignWorkflowStep(enquiry.id, workflowNote)
       if (!result) {
@@ -477,6 +513,9 @@ export function EnquiryDetailPage() {
       reload()
     } catch (err) {
       setFormError(actionError(err, 'Failed to step back'))
+    } finally {
+      setTransitionBusy(false)
+      setTransitionText('')
     }
   }
 
@@ -835,6 +874,7 @@ export function EnquiryDetailPage() {
                       type="file"
                       multiple
                       accept={ENQUIRY_FILE_ACCEPT}
+                      disabled={uploadingDesignOutput}
                       className="sr-only"
                       onChange={(e) => {
                         void handleUploadDesignOutput(e.target.files)
@@ -908,6 +948,7 @@ export function EnquiryDetailPage() {
                         type="file"
                         multiple
                         accept={QUOTATION_FILE_ACCEPT}
+                        disabled={uploadingQuote}
                         className="sr-only"
                         onChange={(e) => {
                           void handleUploadQuoteFiles(e.target.files)
@@ -1028,13 +1069,15 @@ export function EnquiryDetailPage() {
                 )}
 
               {canSubmitToAccounts && (
-                <Button onClick={handleSubmitToAccounts}>Submit to accounts</Button>
+                <Button onClick={handleSubmitToAccounts} disabled={transitionBusy}>
+                  {transitionBusy && transitionText ? transitionText : 'Submit to accounts'}
+                </Button>
               )}
 
               {canMarkPoReview && (
                 <Button
                   onClick={handleMarkPoReview}
-                  disabled={uploadingQuote || !hasQuoteDocument}
+                  disabled={uploadingQuote || !hasQuoteDocument || transitionBusy}
                 >
                   {uploadingQuote ? 'Submitting Quote…' : 'Submit Quote for Review'}
                 </Button>
@@ -1047,29 +1090,31 @@ export function EnquiryDetailPage() {
               )}
 
               {canMarkPoApproval && (
-                <Button onClick={handleMarkPoApproval}>
-                  Approve Quote for Submission to Client
+                <Button onClick={handleMarkPoApproval} disabled={transitionBusy}>
+                  {transitionBusy && transitionText ? transitionText : 'Approve Quote for Submission to Client'}
                 </Button>
               )}
 
               {canApprovePo && (
-                <Button onClick={handleApproveDesign}>Approve Quote (Client Approved)</Button>
+                <Button onClick={handleApproveDesign} disabled={transitionBusy}>
+                  {transitionBusy && transitionText ? transitionText : 'Approve Quote (Client Approved)'}
+                </Button>
               )}
 
               {canRequestRedesign && (
-                <Button variant="secondary" onClick={handleRequestRedesign}>
+                <Button variant="secondary" onClick={handleRequestRedesign} disabled={transitionBusy}>
                   Request redesign
                 </Button>
               )}
 
               {canRevertDesignStep && (
-                <Button variant="secondary" onClick={handleRevertDesignStep}>
+                <Button variant="secondary" onClick={handleRevertDesignStep} disabled={transitionBusy}>
                   {designRevertStepLabel(design.status)}
                 </Button>
               )}
 
               {canReturnToDesign && (
-                <Button variant="secondary" onClick={handleReturnToDesign}>
+                <Button variant="secondary" onClick={handleReturnToDesign} disabled={transitionBusy}>
                   Return to design
                 </Button>
               )}

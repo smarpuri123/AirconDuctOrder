@@ -11,7 +11,7 @@ import { getCurrentUser } from '@/lib/currentUser'
 import { useAuthStore } from '@/store/authStore'
 import { userService } from '@/services/userService'
 import { getTodayISO } from '@/lib/calculations'
-import { ENQUIRY_FILE_ACCEPT, filesToPayloads } from '@/lib/enquiryDocuments'
+import { ENQUIRY_FILE_ACCEPT, filesToPayloadsWithProgress } from '@/lib/enquiryDocuments'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -32,6 +32,8 @@ export function CreateEnquiryPage() {
   const [showExtras, setShowExtras] = useState(false)
   const [pendingFiles, setPendingFiles] = useState<File[]>([])
   const [creatingProject, setCreatingProject] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [submittingStatus, setSubmittingStatus] = useState('')
 
   const [customerId, setCustomerId] = useState('')
   const [projectId, setProjectId] = useState('')
@@ -109,6 +111,7 @@ export function CreateEnquiryPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (isSubmitting) return
     setError('')
 
     if (!customerId) {
@@ -120,34 +123,45 @@ export function CreateEnquiryPage() {
       return
     }
 
-    const filePayloads = pendingFiles.length ? await filesToPayloads(pendingFiles) : undefined
-
-    const payload: CreateEnquiryInput = {
-      customerId,
-      projectId,
-      contactId: contactId || undefined,
-      customerName: selectedClient?.name ?? '',
-      contactPerson: selectedContact?.name,
-      phone: form.phone.trim() || undefined,
-      email: form.email.trim() || undefined,
-      projectName: selectedProject?.name ?? '',
-      location: selectedProject?.location ?? '',
-      enquiryDate: form.enquiryDate,
-      expectedCompletion: form.expectedCompletion || undefined,
-      personInChargeId: personInChargeId || undefined,
-      salesPerson: form.salesPerson.trim() || undefined,
-      priority: form.priority,
-      source: form.source || undefined,
-      remarks: form.remarks || undefined,
-      files: filePayloads,
-    }
+    setIsSubmitting(true)
+    setSubmittingStatus(pendingFiles.length ? 'Preparing files…' : 'Creating enquiry…')
 
     try {
+      const filePayloads = pendingFiles.length
+        ? await filesToPayloadsWithProgress(pendingFiles, (pct) => {
+            setSubmittingStatus(`Preparing files… ${pct}%`)
+          })
+        : undefined
+
+      setSubmittingStatus('Saving enquiry…')
+
+      const payload: CreateEnquiryInput = {
+        customerId,
+        projectId,
+        contactId: contactId || undefined,
+        customerName: selectedClient?.name ?? '',
+        contactPerson: selectedContact?.name,
+        phone: form.phone.trim() || undefined,
+        email: form.email.trim() || undefined,
+        projectName: selectedProject?.name ?? '',
+        location: selectedProject?.location ?? '',
+        enquiryDate: form.enquiryDate,
+        expectedCompletion: form.expectedCompletion || undefined,
+        personInChargeId: personInChargeId || undefined,
+        salesPerson: form.salesPerson.trim() || undefined,
+        priority: form.priority,
+        source: form.source || undefined,
+        remarks: form.remarks || undefined,
+        files: filePayloads,
+      }
+
       const enquiry = await enquiryService.createEnquiry(payload)
       setPendingFiles([])
       navigate(`/enquiries/${enquiry.id}`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create enquiry')
+      setIsSubmitting(false)
+      setSubmittingStatus('')
     }
   }
 
@@ -178,6 +192,7 @@ export function CreateEnquiryPage() {
               required
               value={customerId}
               onChange={(e) => setCustomerId(e.target.value)}
+              disabled={isSubmitting}
               options={[
                 { value: '', label: 'Select client' },
                 ...clients.map((c) => ({ value: c.id, label: c.name })),
@@ -189,7 +204,7 @@ export function CreateEnquiryPage() {
               clients={clients}
               projects={projects}
               value={projectId}
-              disabled={!customerId}
+              disabled={!customerId || isSubmitting}
               busy={creatingProject}
               onSelect={setProjectId}
               onCreate={async ({ name, code }) => {
@@ -221,6 +236,7 @@ export function CreateEnquiryPage() {
               label="Responsibility (person in charge)"
               value={personInChargeId}
               onChange={(e) => setPersonInChargeId(e.target.value)}
+              disabled={isSubmitting}
               options={[
                 {
                   value: '',
@@ -258,6 +274,7 @@ export function CreateEnquiryPage() {
                 label="Contact person"
                 value={contactId}
                 onChange={(e) => setContactId(e.target.value)}
+                disabled={isSubmitting}
                 options={[
                   { value: '', label: 'None' },
                   ...contacts.map((c) => ({
@@ -270,6 +287,7 @@ export function CreateEnquiryPage() {
                 label="Phone"
                 type="tel"
                 value={form.phone}
+                disabled={isSubmitting}
                 onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
               />
               <Input
@@ -277,6 +295,7 @@ export function CreateEnquiryPage() {
                 type="email"
                 className="sm:col-span-2"
                 value={form.email}
+                disabled={isSubmitting}
                 onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
               />
             </div>
@@ -292,6 +311,7 @@ export function CreateEnquiryPage() {
             accept={ENQUIRY_FILE_ACCEPT}
             files={pendingFiles}
             onFilesChange={setPendingFiles}
+            disabled={isSubmitting}
           />
         </Card>
 
@@ -310,17 +330,20 @@ export function CreateEnquiryPage() {
                 label="Enquiry date"
                 type="date"
                 value={form.enquiryDate}
+                disabled={isSubmitting}
                 onChange={(e) => setForm((f) => ({ ...f, enquiryDate: e.target.value }))}
               />
               <Input
                 label="Expected completion"
                 type="date"
                 value={form.expectedCompletion}
+                disabled={isSubmitting}
                 onChange={(e) => setForm((f) => ({ ...f, expectedCompletion: e.target.value }))}
               />
               <Select
                 label="Priority"
                 value={form.priority}
+                disabled={isSubmitting}
                 onChange={(e) =>
                   setForm((f) => ({ ...f, priority: e.target.value as CreateEnquiryInput['priority'] }))
                 }
@@ -330,6 +353,7 @@ export function CreateEnquiryPage() {
                 <Textarea
                   label="Remarks"
                   value={form.remarks}
+                  disabled={isSubmitting}
                   onChange={(e) => setForm((f) => ({ ...f, remarks: e.target.value }))}
                   rows={3}
                 />
@@ -340,7 +364,9 @@ export function CreateEnquiryPage() {
 
         {error && <p className="text-danger text-sm">{error}</p>}
 
-        <Button type="submit">Create enquiry</Button>
+        <Button type="submit" disabled={isSubmitting}>
+          {isSubmitting ? (submittingStatus || 'Creating enquiry…') : 'Create enquiry'}
+        </Button>
       </form>
     </div>
   )

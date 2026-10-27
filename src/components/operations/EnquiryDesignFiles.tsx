@@ -162,7 +162,7 @@ export function EnquiryDesignFiles({
               disabled={busy || pendingFiles.length === 0}
               onClick={handleSaveRevision}
             >
-              Save revision
+              {busy ? 'Saving revision…' : 'Save revision'}
             </Button>
             {pendingFiles.length > 0 && (
               <Button type="button" size="sm" variant="ghost" disabled={busy} onClick={clearPending}>
