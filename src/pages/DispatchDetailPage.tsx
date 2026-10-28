@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Check, Download, Edit3, Mail, MessageCircle } from 'lucide-react'
+import { ArrowLeft, Check, Download, Edit3, Loader2, Mail, MessageCircle } from 'lucide-react'
 import { dispatchService } from '@/services/dispatchService'
 import { orderService } from '@/services/orderService'
 import { enquiryService } from '@/services/enquiryService'
@@ -39,6 +39,7 @@ export function DispatchDetailPage() {
   const [updatingStatus, setUpdatingStatus] = useState(false)
   const [statusError, setStatusError] = useState('')
   const [pendingStatus, setPendingStatus] = useState<DispatchStatus | null>(null)
+  const [downloadingPdf, setDownloadingPdf] = useState(false)
   const [successModal, setSuccessModal] = useState<{ open: boolean; title: string; message: string }>({
     open: false,
     title: '',
@@ -322,8 +323,29 @@ export function DispatchDetailPage() {
         >
           <Mail className="w-4 h-4" /> Email
         </Button>
-        <Button variant="secondary" size="sm" onClick={() => generateDispatchPDF(dispatch, order)}>
-          <Download className="w-4 h-4" /> PDF
+        <Button
+          variant="secondary"
+          size="sm"
+          disabled={downloadingPdf}
+          onClick={async () => {
+            if (downloadingPdf) return
+            setDownloadingPdf(true)
+            try {
+              await generateDispatchPDF(dispatch, order)
+            } finally {
+              setDownloadingPdf(false)
+            }
+          }}
+        >
+          {downloadingPdf ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin text-primary" /> PDF…
+            </>
+          ) : (
+            <>
+              <Download className="w-4 h-4" /> PDF
+            </>
+          )}
         </Button>
       </div>
 

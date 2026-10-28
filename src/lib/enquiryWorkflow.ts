@@ -4,6 +4,7 @@ import type { DesignReviewStatus, Enquiry } from '@/types/enquiry'
 export const APPROVAL_PROCESSING_STATUSES: DesignReviewStatus[] = [
   'submitted_to_accounts',
   'po_for_review',
+  'po_approved',
   'po_for_approval',
 ]
 
@@ -55,6 +56,7 @@ const EDITABLE_DESIGN_STATUSES: DesignReviewStatus[] = [
   'revision_needed',
   'submitted_to_accounts',
   'po_for_review',
+  'po_approved',
   'po_for_approval',
   'approved',
 ]
@@ -95,7 +97,8 @@ export function previousDesignStatusUi(status: DesignReviewStatus): DesignReview
   const map: Partial<Record<DesignReviewStatus, DesignReviewStatus>> = {
     submitted_to_accounts: 'in_review',
     po_for_review: 'submitted_to_accounts',
-    po_for_approval: 'po_for_review',
+    po_approved: 'po_for_review',
+    po_for_approval: 'po_approved',
     approved: 'po_for_approval',
   }
   return map[status] ?? null
@@ -113,6 +116,7 @@ export function canRevertDesignStepUi(enquiry: Enquiry, order?: OrderWorkflowSna
 const REVERT_STEP_LABELS: Partial<Record<DesignReviewStatus, string>> = {
   submitted_to_accounts: 'Quote preparation',
   po_for_review: 'Quote review',
+  po_approved: 'Quote approved (Supervisor)',
   po_for_approval: 'Quote submitted to client',
 }
 

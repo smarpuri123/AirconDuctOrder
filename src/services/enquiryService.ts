@@ -684,11 +684,37 @@ export const enquiryService = {
     const enquiry = enquiries[idx]
     if (enquiry.designReview.status !== 'po_for_review') return undefined
     const revision = enquiry.designReview.revision
+    enquiry.designReview = { ...enquiry.designReview, status: 'po_approved' }
+    addActivityAsCurrentUser(enquiry, {
+      phase: 'accounts',
+      title: `Quote approved by supervisor — ${formatRevision(revision)}`,
+      detail: 'Quote reviewed and approved by supervisor for client submission',
+      revision,
+    })
+    enquiries[idx] = enquiry
+    persist(enquiries)
+    return enquiry
+  },
+
+  async markPoApproved(id: string): Promise<Enquiry | undefined> {
+    return this.markPoForApproval(id)
+  },
+
+  async submitQuoteToClient(id: string): Promise<Enquiry | undefined> {
+    if (isApiMode) {
+      return apiEnquiry<Enquiry>(`/enquiries/${id}/design/submit-quote-to-client`, 'POST')
+    }
+    const enquiries = getEnquiriesData()
+    const idx = enquiries.findIndex((e) => e.id === id)
+    if (idx === -1) return undefined
+    const enquiry = enquiries[idx]
+    if (enquiry.designReview.status !== 'po_approved') return undefined
+    const revision = enquiry.designReview.revision
     enquiry.designReview = { ...enquiry.designReview, status: 'po_for_approval' }
     addActivityAsCurrentUser(enquiry, {
       phase: 'accounts',
-      title: `Quote approved for client submission — ${formatRevision(revision)}`,
-      detail: 'Quote reviewed and approved for submission to client',
+      title: `Quote submitted to client — ${formatRevision(revision)}`,
+      detail: 'Quote submitted to client by accounts',
       revision,
     })
     enquiries[idx] = enquiry
@@ -777,7 +803,7 @@ export const enquiryService = {
     if (idx === -1) return undefined
     const enquiry = enquiries[idx]
     const allowed = [
-      ...['submitted_to_accounts', 'po_for_review', 'po_for_approval'],
+      ...['submitted_to_accounts', 'po_for_review', 'po_approved', 'po_for_approval'],
       'approved',
     ]
     if (!allowed.includes(enquiry.designReview.status)) return undefined

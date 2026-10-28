@@ -198,6 +198,7 @@ function mapDesignStatus(designStatus: string): string {
     IN_REVIEW: 'in_review',
     SUBMITTED_TO_ACCOUNTS: 'submitted_to_accounts',
     PO_FOR_REVIEW: 'po_for_review',
+    PO_APPROVED: 'po_approved',
     PO_FOR_APPROVAL: 'po_for_approval',
     APPROVED: 'approved',
     REVISION_NEEDED: 'revision_needed',
@@ -243,6 +244,7 @@ function computeEnquiryStage(enquiry: EnquiryWithRelations): string {
         'PENDING',
         'SUBMITTED_TO_ACCOUNTS',
         'PO_FOR_REVIEW',
+        'PO_APPROVED',
         'PO_FOR_APPROVAL',
       ].includes(enquiry.designStatus)
     ) {

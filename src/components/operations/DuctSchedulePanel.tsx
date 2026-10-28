@@ -1,5 +1,4 @@
-import { Download } from 'lucide-react'
-import { downloadEnquiryDocument } from '@/lib/enquiryDocuments'
+import { DocumentDownloadButton } from '@/components/operations/DocumentDownloadButton'
 import {
   shopDrawingCleat,
   shopDrawingCorner,
@@ -217,14 +216,12 @@ export function DuctSchedulePanel({ enquiryId, ductLines, ductScheduleDocuments 
                       Rev {String(rev).padStart(2, '0')}
                     </span>
                   </div>
-                  <button
-                    type="button"
-                    className="flex items-center gap-1 text-primary shrink-0 min-h-11 px-2"
-                    onClick={() => downloadEnquiryDocument({ ...doc, enquiryId })}
-                  >
-                    <Download className="w-4 h-4" />
-                    Download
-                  </button>
+                  <DocumentDownloadButton
+                    document={doc}
+                    enquiryId={enquiryId}
+                    variant="link"
+                    className="min-h-11 px-2 text-xs"
+                  />
                 </li>
               )
             })}

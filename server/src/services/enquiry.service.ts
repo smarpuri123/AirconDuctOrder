@@ -1067,14 +1067,35 @@ export async function markPoForApproval(id: string, actor: ActivityActor) {
   if (!enquiry || enquiry.designStatus !== 'PO_FOR_REVIEW') return null
 
   const moved = await transitionEnquiryDesignStatus(id, ['PO_FOR_REVIEW'], {
+    designStatus: 'PO_APPROVED',
+  })
+  if (!moved) return null
+
+  await logActivity(id, {
+    phase: 'accounts',
+    title: `Quote approved by supervisor — ${formatRevision(enquiry.designRevision)}`,
+    detail: 'Quote reviewed and approved by supervisor for client submission',
+    actor: actor.name,
+    actorRole: actor.role,
+    revision: enquiry.designRevision,
+  })
+
+  return getEnquiryById(id)
+}
+
+export async function submitQuoteToClient(id: string, actor: ActivityActor) {
+  const enquiry = await prisma.enquiry.findUnique({ where: { id } })
+  if (!enquiry || enquiry.designStatus !== 'PO_APPROVED') return null
+
+  const moved = await transitionEnquiryDesignStatus(id, ['PO_APPROVED'], {
     designStatus: 'PO_FOR_APPROVAL',
   })
   if (!moved) return null
 
   await logActivity(id, {
     phase: 'accounts',
-    title: `Quote approved for client submission — ${formatRevision(enquiry.designRevision)}`,
-    detail: 'Quote reviewed and approved for submission to client',
+    title: `Quote submitted to client — ${formatRevision(enquiry.designRevision)}`,
+    detail: 'Quote submitted to client by accounts',
     actor: actor.name,
     actorRole: actor.role,
     revision: enquiry.designRevision,

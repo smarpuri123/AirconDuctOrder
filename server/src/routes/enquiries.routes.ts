@@ -13,6 +13,7 @@ import {
   submitDesignToAccounts,
   markPoForReview,
   markPoForApproval,
+  submitQuoteToClient,
   requestDesignRevision,
   resumeDesignRevision,
   returnToDesignFromApproval,
@@ -394,6 +395,21 @@ export async function enquiryRoutes(app: FastifyInstance) {
       if (!(await guardEnquiryAssignedToUser(request, reply, id))) return
       const enquiry = await markPoForApproval(id, activityActorFromRequest(request))
       if (!enquiry) return reply.code(400).send({ error: 'Quote must be in review stage first' })
+      return enquiry
+    },
+  )
+
+  app.post(
+    '/enquiries/:id/design/submit-quote-to-client',
+    { preHandler: [app.authenticate, app.authorize(PERMISSIONS.ENQUIRIES_WRITE)] },
+    async (request, reply) => {
+      if (!canManageAccountsWorkflow(request.authUser!.roles)) {
+        return reply.code(403).send({ error: 'Accounts, supervisor, or admin access required to submit Quote to client' })
+      }
+      const { id } = request.params as { id: string }
+      if (!(await guardEnquiryAssignedToUser(request, reply, id))) return
+      const enquiry = await submitQuoteToClient(id, activityActorFromRequest(request))
+      if (!enquiry) return reply.code(400).send({ error: 'Quote must be approved by supervisor before submitting to client' })
       return enquiry
     },
   )

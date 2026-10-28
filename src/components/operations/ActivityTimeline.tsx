@@ -3,7 +3,7 @@ import { PORTAL_ROLE_LABELS } from '@/lib/stagePortalRoles'
 
 import { formatDate } from '@/lib/calculations'
 
-import { downloadEnquiryDocument } from '@/lib/enquiryDocuments'
+import { DocumentDownloadButton } from '@/components/operations/DocumentDownloadButton'
 
 import type { ActivityEntry, ActivityPhase, EnquiryDesignDocument } from '@/types/enquiry'
 
@@ -256,21 +256,25 @@ function ActivityRow({
 
               <li key={doc.id}>
 
-                <button
+                <DocumentDownloadButton
 
-                  type="button"
 
-                  className="text-xs text-primary hover:underline text-left"
 
-                  onClick={() => downloadEnquiryDocument(doc)}
+                  document={doc}
+                  variant="link"
+                  size="sm"
+                  iconSize="sm"
+                  className="text-xs text-left"
 
-                >
+                  label={`Download ${doc.fileName}${doc.inputRevision ? ` (Rev ${String(doc.inputRevision).padStart(2, '0')})` : ''}`}
 
-                  Download {doc.fileName}
+                />
 
-                  {doc.inputRevision ? ` (Rev ${String(doc.inputRevision).padStart(2, '0')})` : ''}
 
-                </button>
+
+
+
+
 
               </li>
 

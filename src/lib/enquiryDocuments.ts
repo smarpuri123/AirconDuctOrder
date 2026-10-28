@@ -145,36 +145,48 @@ function guessMime(fileName: string): string {
   return map[ext ?? ''] ?? 'application/octet-stream'
 }
 
+const activeDocumentDownloads = new Set<string>()
+
 export async function downloadEnquiryDocument(doc: EnquiryDesignDocument): Promise<void> {
-  const localBlob = getLocalEnquiryFileBlob(doc.id)
-  if (localBlob) {
-    const byteCharacters = atob(localBlob.dataBase64)
-    const byteNumbers = new Array(byteCharacters.length)
-    for (let i = 0; i < byteCharacters.length; i++) {
-      byteNumbers[i] = byteCharacters.charCodeAt(i)
+  const docKey = `${doc.enquiryId || ''}:${doc.id}`
+  if (activeDocumentDownloads.has(docKey)) return
+  activeDocumentDownloads.add(docKey)
+
+  try {
+    const localBlob = getLocalEnquiryFileBlob(doc.id)
+    if (localBlob) {
+      const byteCharacters = atob(localBlob.dataBase64)
+      const byteNumbers = new Array(byteCharacters.length)
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i)
+      }
+      const blob = new Blob([new Uint8Array(byteNumbers)], { type: localBlob.mimeType })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = doc.fileName || localBlob.fileName
+      a.click()
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+      return
     }
-    const blob = new Blob([new Uint8Array(byteNumbers)], { type: localBlob.mimeType })
+    const token = getToken()
+    const res = await fetch(
+      `${API_BASE}/enquiries/${doc.enquiryId}/documents/${doc.id}/download`,
+      { headers: token ? { Authorization: `Bearer ${token}` } : {} },
+    )
+    if (!res.ok) {
+      throw new Error(`Failed to download file (${res.status} ${res.statusText || 'Error'})`)
+    }
+    const blob = await res.blob()
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = doc.fileName || localBlob.fileName
+    a.download = doc.fileName
     a.click()
-    URL.revokeObjectURL(url)
-    return
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
+  } finally {
+    activeDocumentDownloads.delete(docKey)
   }
-  const token = getToken()
-  const res = await fetch(
-    `${API_BASE}/enquiries/${doc.enquiryId}/documents/${doc.id}/download`,
-    { headers: token ? { Authorization: `Bearer ${token}` } : {} },
-  )
-  if (!res.ok) return
-  const blob = await res.blob()
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = doc.fileName
-  a.click()
-  URL.revokeObjectURL(url)
 }
 
 export function formatFileList(names: string[]): string {

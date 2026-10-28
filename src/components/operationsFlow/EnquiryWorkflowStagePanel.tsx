@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Download, FolderOpen, Upload, X } from 'lucide-react'
+import { FolderOpen, Upload, X } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Select } from '@/components/ui/Select'
 import { Modal } from '@/components/ui/Modal'
+import { DocumentDownloadButton } from '@/components/operations/DocumentDownloadButton'
 import {
   ENQUIRY_FILE_ACCEPT,
   QUOTATION_FILE_ACCEPT,
-  downloadEnquiryDocument,
   filesToPayloadsWithProgress,
 } from '@/lib/enquiryDocuments'
 import { formatDate } from '@/lib/calculations'
@@ -207,14 +207,13 @@ export function EnquiryWorkflowStagePanel({ selection, onClose, onUpdated }: Pro
                     Rev {String(rev).padStart(2, '0')}
                   </span>
                 </div>
-                <button
-                  type="button"
-                  className="flex items-center gap-1 text-primary shrink-0 px-1.5 py-1"
-                  onClick={() => downloadEnquiryDocument({ ...doc, enquiryId: enquiry.id })}
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  Download
-                </button>
+                <DocumentDownloadButton
+                  document={doc}
+                  enquiryId={enquiry.id}
+                  variant="link"
+                  iconSize="sm"
+                  className="px-1.5 py-1 text-xs"
+                />
               </li>
             )
           })}
@@ -321,14 +320,13 @@ export function EnquiryWorkflowStagePanel({ selection, onClose, onUpdated }: Pro
                     Rev {String(rev).padStart(2, '0')}
                   </span>
                 </div>
-                <button
-                  type="button"
-                  className="flex items-center gap-1 text-primary shrink-0 px-1.5 py-1"
-                  onClick={() => downloadEnquiryDocument({ ...doc, enquiryId: enquiry.id })}
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  Download
-                </button>
+                <DocumentDownloadButton
+                  document={doc}
+                  enquiryId={enquiry.id}
+                  variant="link"
+                  iconSize="sm"
+                  className="px-1.5 py-1 text-xs"
+                />
               </li>
             )
           })}
@@ -429,19 +427,51 @@ export function EnquiryWorkflowStagePanel({ selection, onClose, onUpdated }: Pro
             )}
           </div>
         )
-      case 'quotation_approval':
+      case 'quotation_review':
         return (
           <div className="space-y-3">
             {renderDesignOutputDocs(false)}
             {renderQuoteDocs()}
             {design.status === 'po_for_review' && canApproveQuote && (
               <Button disabled={busy} onClick={() => run(() => enquiryService.markPoForApproval(enquiry.id))}>
-                Approve Quote for Submission to Client
+                Approve Quote (Supervisor Approval)
               </Button>
             )}
             {design.status === 'po_for_review' && !canApproveQuote && (
               <p className="text-xs text-text-secondary">
-                Admin or Supervisor downloads the Quote above and approves it for submission to the client.
+                Admin or Supervisor downloads the Quote above and approves it.
+              </p>
+            )}
+            {design.status === 'po_approved' && (
+              <p className="text-xs text-emerald-600 font-medium">
+                Quote approved by Supervisor. Ready to be submitted to client.
+              </p>
+            )}
+          </div>
+        )
+      case 'quotation_approval':
+        return (
+          <div className="space-y-3">
+            {renderDesignOutputDocs(false)}
+            {renderQuoteDocs()}
+            {canAccounts && design.status === 'po_approved' && (
+              <Button disabled={busy} onClick={() => run(() => enquiryService.submitQuoteToClient(enquiry.id))}>
+                Submit Quote to Client
+              </Button>
+            )}
+            {design.status === 'po_approved' && !canAccounts && (
+              <p className="text-xs text-emerald-600 font-medium">
+                Quote approved by Supervisor. Awaiting accounts submission to client.
+              </p>
+            )}
+            {design.status === 'po_for_review' && canApproveQuote && (
+              <Button disabled={busy} onClick={() => run(() => enquiryService.markPoForApproval(enquiry.id))}>
+                Approve Quote (Supervisor Approval)
+              </Button>
+            )}
+            {design.status === 'po_for_approval' && (
+              <p className="text-xs text-emerald-600 font-medium">
+                Quote submitted to client.
               </p>
             )}
           </div>
@@ -451,10 +481,15 @@ export function EnquiryWorkflowStagePanel({ selection, onClose, onUpdated }: Pro
           <div className="space-y-3">
             {renderDesignOutputDocs(false)}
             {renderQuoteDocs()}
-            {canAccounts && design.status === 'po_for_approval' && (
-              <Button disabled={busy} onClick={() => run(() => enquiryService.approveDesign(enquiry.id))}>
-                Approve Quote (Client Approved)
+            {canAccounts && design.status === 'po_approved' && (
+              <Button disabled={busy} onClick={() => run(() => enquiryService.submitQuoteToClient(enquiry.id))}>
+                Submit Quote to Client
               </Button>
+            )}
+            {design.status === 'po_for_approval' && (
+              <p className="text-xs text-emerald-600 font-medium">
+                Quote submitted to client. Awaiting client response.
+              </p>
             )}
           </div>
         )

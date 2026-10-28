@@ -1,4 +1,5 @@
-import { Download, Mail, MessageCircle } from 'lucide-react'
+import { useState } from 'react'
+import { Download, Loader2, Mail, MessageCircle } from 'lucide-react'
 import {
   generateDispatchPDF,
   generateEmailContent,
@@ -15,6 +16,7 @@ interface ShareActionsProps {
 }
 
 export function ShareActions({ dispatch, order, layout = 'grid' }: ShareActionsProps) {
+  const [downloadingPdf, setDownloadingPdf] = useState(false)
   const gridClass = layout === 'grid' ? 'grid grid-cols-2 gap-3' : 'flex flex-wrap gap-3'
 
   return (
@@ -40,11 +42,20 @@ export function ShareActions({ dispatch, order, layout = 'grid' }: ShareActionsP
       </button>
       <button
         type="button"
-        onClick={() => generateDispatchPDF(dispatch, order)}
+        disabled={downloadingPdf}
+        onClick={async () => {
+          if (downloadingPdf) return
+          setDownloadingPdf(true)
+          try {
+            await generateDispatchPDF(dispatch, order)
+          } finally {
+            setDownloadingPdf(false)
+          }
+        }}
         className="col-span-2 flex items-center justify-center gap-2 min-h-14 px-4 rounded-xl bg-primary text-white font-semibold text-sm active:opacity-90 touch-manipulation"
       >
-        <Download className="w-5 h-5" />
-        Download PDF
+        {downloadingPdf ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
+        {downloadingPdf ? 'Generating PDF…' : 'Download PDF'}
       </button>
     </div>
   )

@@ -25,6 +25,7 @@ export type WorkflowStageId =
   | 'design_work'
   | 'design_handover'
   | 'quotation_prep'
+  | 'quotation_review'
   | 'quotation_approval'
   | 'quotation_submitted'
   | 'customer_approval'
@@ -81,6 +82,7 @@ export interface EnquiryWorkflowRow {
 
 export const ARC_STAGE_IDS: WorkflowStageId[] = [
   'quotation_prep',
+  'quotation_review',
   'quotation_approval',
   'quotation_submitted',
   'customer_approval',
@@ -101,6 +103,7 @@ const DESIGN_STATUS_ORDER: Enquiry['designReview']['status'][] = [
   'revision_needed',
   'submitted_to_accounts',
   'po_for_review',
+  'po_approved',
   'po_for_approval',
   'approved',
 ]
@@ -264,10 +267,17 @@ function accountsAndProductionCells(
         ? 'active'
         : 'completed'
 
-  const quotApproval: WorkflowCellStatus =
+  const quotReview: WorkflowCellStatus =
     rank < designStatusRank('po_for_review')
       ? 'pending'
       : dr.status === 'po_for_review'
+        ? 'active'
+        : 'completed'
+
+  const quotApproval: WorkflowCellStatus =
+    rank < designStatusRank('po_approved')
+      ? 'pending'
+      : dr.status === 'po_approved'
         ? 'active'
         : 'completed'
 
@@ -338,12 +348,20 @@ function accountsAndProductionCells(
       (t) => /submitted to accounts|po sent for review|quote submitted for review/i.test(t),
     ),
     accountsCell(
-      'quotation_approval',
+      'quotation_review',
       'Quote review',
       'Quote rev',
+      quotReview,
+      enquiry,
+      (t) => /quote submitted for review|po sent for review/i.test(t),
+    ),
+    accountsCell(
+      'quotation_approval',
+      'Quote approved by supervisor',
+      'Supervisor appv',
       quotApproval,
       enquiry,
-      (t) => /po sent for review|po pending approval|quote submitted for review|quote approved for client/i.test(t),
+      (t) => /quote approved by supervisor|quote approved for client/i.test(t),
     ),
     accountsCell(
       'quotation_submitted',
@@ -351,7 +369,7 @@ function accountsAndProductionCells(
       'Submitted',
       submitted,
       enquiry,
-      (t) => /po pending approval|po approved|quote approved for client|quote approved by client/i.test(t),
+      (t) => /quote submitted to client|po pending approval/i.test(t),
     ),
     accountsCell(
       'customer_approval',

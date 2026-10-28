@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { Download, FolderOpen, RotateCcw, Upload, X } from 'lucide-react'
+import { FolderOpen, RotateCcw, Upload, X } from 'lucide-react'
 import { WorkflowConfirmModal, StepSuccessModal } from '@/components/ui/WorkflowConfirmModal'
+import { DocumentDownloadButton } from '@/components/operations/DocumentDownloadButton'
 import {
   ENQUIRY_FILE_ACCEPT,
   QUOTATION_FILE_ACCEPT,
-  downloadEnquiryDocument,
   filesToPayloadsWithProgress,
 } from '@/lib/enquiryDocuments'
 
@@ -110,6 +110,7 @@ export function EnquiryDetailPage() {
     | 'submit_to_accounts'
     | 'submit_quote_review'
     | 'approve_quote_client'
+    | 'submit_quote_to_client'
     | 'approve_quote_final'
     | 'revert_design_step'
     | 'return_to_design'
@@ -229,6 +230,7 @@ export function EnquiryDetailPage() {
     'revision_needed',
     'submitted_to_accounts',
     'po_for_review',
+    'po_approved',
     'po_for_approval',
     'approved',
   ].includes(design.status)
@@ -246,6 +248,7 @@ export function EnquiryDetailPage() {
     canManageDesignWorkflow(roles)
   const canMarkPoReview = design.status === 'submitted_to_accounts' && canManageAccountsWorkflow
   const canMarkPoApproval = design.status === 'po_for_review' && canApproveQuoteForClient(roles)
+  const canSubmitQuoteToClient = design.status === 'po_approved' && canManageAccountsWorkflow
   const hasQuoteDocument = (enquiry.quotationDocuments?.length ?? 0) > 0
   const canApprovePo = design.status === 'po_for_approval' && canManageAccountsWorkflow
   const canReturnToDesign = canReturnToDesignUi(enquiry, orderSnapshot)
@@ -440,7 +443,7 @@ export function EnquiryDetailPage() {
         setTransitionText('Approving Quote…')
         const result = await enquiryService.markPoForApproval(enquiry.id)
         if (!result) {
-          setFormError('Could not approve Quote for client submission.')
+          setFormError('Could not approve Quote.')
           return
         }
         setConfirmModalType(null)
@@ -448,8 +451,23 @@ export function EnquiryDetailPage() {
         reload()
         setSuccessModal({
           open: true,
-          title: 'Quote Approved for Client',
-          message: 'Quotation verified and approved for sending to the client.',
+          title: 'Quote Approved by Supervisor',
+          message: 'Quotation verified and approved by Supervisor. Accounts can now submit the quote to the client.',
+        })
+      } else if (type === 'submit_quote_to_client') {
+        setTransitionText('Submitting Quote…')
+        const result = await enquiryService.submitQuoteToClient(enquiry.id)
+        if (!result) {
+          setFormError('Could not submit Quote to client.')
+          return
+        }
+        setConfirmModalType(null)
+        setConfirmNote('')
+        reload()
+        setSuccessModal({
+          open: true,
+          title: 'Quote Submitted to Client',
+          message: 'Quotation marked as submitted to the client. Awaiting client approval.',
         })
       } else if (type === 'approve_quote_final') {
         setTransitionText('Recording approval…')
@@ -550,9 +568,16 @@ export function EnquiryDetailPage() {
         }
       case 'approve_quote_client':
         return {
-          title: 'Approve Quote for Client Submission',
-          description: 'Confirm that this quote has been checked and is ready to share with the client?',
+          title: 'Approve Quote (Supervisor Approval)',
+          description: 'Confirm that this quote has been checked and approved by Supervisor / Admin?',
           confirmText: 'Approve Quote',
+          variant: 'primary' as const,
+        }
+      case 'submit_quote_to_client':
+        return {
+          title: 'Submit Quote to Client',
+          description: 'Confirm that this approved quote has been submitted / sent to the client by Accounts?',
+          confirmText: 'Confirm Submission',
           variant: 'primary' as const,
         }
       case 'approve_quote_final':
@@ -1101,14 +1126,12 @@ export function EnquiryDetailPage() {
                             Rev {String(rev).padStart(2, '0')}
                           </span>
                         </div>
-                        <button
-                          type="button"
-                          className="flex items-center gap-1 text-primary shrink-0 min-h-11 px-2"
-                          onClick={() => downloadEnquiryDocument({ ...doc, enquiryId: enquiry.id })}
-                        >
-                          <Download className="w-4 h-4" />
-                          Download
-                        </button>
+                        <DocumentDownloadButton
+                          document={doc}
+                          enquiryId={enquiry.id}
+                          variant="link"
+                          className="min-h-11 px-2"
+                        />
                       </li>
                     )
                   })}
@@ -1131,8 +1154,12 @@ export function EnquiryDetailPage() {
                       {design.status === 'submitted_to_accounts'
                         ? 'Upload the Quote document (PDF or Excel) to move from Quote preparation to Quote review.'
                         : design.status === 'po_for_review'
-                          ? 'Admin or Supervisor downloads the Quote document below and approves it for submission to the client.'
-                          : 'Download the Quote document prepared by accounts.'}
+                          ? 'Admin or Supervisor downloads the Quote document below and approves it.'
+                          : design.status === 'po_approved'
+                            ? 'Quote approved by Supervisor. Accounts can now submit the quote to the client.'
+                            : design.status === 'po_for_approval'
+                              ? 'Quote submitted to client. Awaiting client approval to create order.'
+                              : 'Download the Quote document prepared by accounts.'}
                     </p>
                   </div>
                   {canManageAccountsWorkflow && !enquiry.orderId && (
@@ -1217,14 +1244,12 @@ export function EnquiryDetailPage() {
                               Rev {String(rev).padStart(2, '0')}
                             </span>
                           </div>
-                          <button
-                            type="button"
-                            className="flex items-center gap-1 text-primary shrink-0 min-h-11 px-2"
-                            onClick={() => downloadEnquiryDocument({ ...doc, enquiryId: enquiry.id })}
-                          >
-                            <Download className="w-4 h-4" />
-                            Download
-                          </button>
+                          <DocumentDownloadButton
+                            document={doc}
+                            enquiryId={enquiry.id}
+                            variant="link"
+                            className="min-h-11 px-2"
+                          />
                         </li>
                       )
                     })}
@@ -1302,14 +1327,32 @@ export function EnquiryDetailPage() {
 
               {design.status === 'po_for_review' && !canMarkPoApproval && (
                 <p className="text-sm text-text-secondary self-center">
-                  Awaiting Admin or Supervisor to download the Quote and approve it for client submission.
+                  Awaiting Admin or Supervisor to download the Quote and approve it.
                 </p>
               )}
 
               {canMarkPoApproval && (
                 <Button onClick={() => setConfirmModalType('approve_quote_client')} disabled={transitionBusy}>
-                  {transitionBusy && transitionText ? transitionText : 'Approve Quote for Submission to Client'}
+                  {transitionBusy && transitionText ? transitionText : 'Approve Quote (Supervisor Approval)'}
                 </Button>
+              )}
+
+              {design.status === 'po_approved' && !canSubmitQuoteToClient && (
+                <p className="text-sm text-text-secondary self-center">
+                  Quote approved by Supervisor. Awaiting Accounts to submit the quote to the client.
+                </p>
+              )}
+
+              {canSubmitQuoteToClient && (
+                <Button onClick={() => setConfirmModalType('submit_quote_to_client')} disabled={transitionBusy}>
+                  {transitionBusy && transitionText ? transitionText : 'Submit Quote to Client'}
+                </Button>
+              )}
+
+              {design.status === 'po_for_approval' && !canApprovePo && (
+                <p className="text-sm text-text-secondary self-center">
+                  Quote submitted to client. Awaiting client approval.
+                </p>
               )}
 
               {canApprovePo && (

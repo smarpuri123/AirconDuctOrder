@@ -19,6 +19,7 @@ export type DesignReviewStatus =
   | 'in_review'
   | 'submitted_to_accounts'
   | 'po_for_review'
+  | 'po_approved'
   | 'po_for_approval'
   | 'approved'
   | 'revision_needed'

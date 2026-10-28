@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Download, Table2, Upload } from 'lucide-react'
+import { ArrowLeft, Check, Download, Loader2, Table2, Upload } from 'lucide-react'
 import { DuctSchedulePasteGrid } from '@/components/excelImport/DuctSchedulePasteGrid'
 import {
   DuctScheduleLinesTable,
@@ -91,6 +91,8 @@ export function ExcelImportPage() {
   const [importing, setImporting] = useState(false)
   const [sourceFile, setSourceFile] = useState<File | null>(null)
   const [importMode, setImportMode] = useState<'file' | 'paste'>('file')
+  const [downloadingTemplate, setDownloadingTemplate] = useState(false)
+  const [downloadedTemplate, setDownloadedTemplate] = useState(false)
 
   const importColumns = useMemo(() => getConfiguredImportColumns(), [step, importMode])
   const gridColumns = useMemo(() => getConfiguredGridColumnDefs(), [step, importMode])
@@ -337,9 +339,38 @@ export function ExcelImportPage() {
             )}
           </div>
 
-          <Button type="button" variant="secondary" onClick={() => exportDuctScheduleImportTemplate()}>
-            <Download className="w-4 h-4" />
-            Download Excel template
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={downloadingTemplate}
+            onClick={() => {
+              if (downloadingTemplate) return
+              setDownloadingTemplate(true)
+              try {
+                exportDuctScheduleImportTemplate()
+                setDownloadedTemplate(true)
+                setTimeout(() => setDownloadedTemplate(false), 2000)
+              } finally {
+                setDownloadingTemplate(false)
+              }
+            }}
+          >
+            {downloadingTemplate ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                Downloading template…
+              </>
+            ) : downloadedTemplate ? (
+              <>
+                <Check className="w-4 h-4 text-success" />
+                Downloaded
+              </>
+            ) : (
+              <>
+                <Download className="w-4 h-4" />
+                Download Excel template
+              </>
+            )}
           </Button>
 
           {importMode === 'paste' && (

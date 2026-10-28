@@ -5,6 +5,7 @@ const PO_STEPS: { status: DesignReviewStatus; label: string }[] = [
   { status: 'in_review', label: 'Working on design' },
   { status: 'submitted_to_accounts', label: 'Quote preparation' },
   { status: 'po_for_review', label: 'Quote review' },
+  { status: 'po_approved', label: 'Quote approved (Supervisor)' },
   { status: 'po_for_approval', label: 'Quote submitted to client' },
   { status: 'approved', label: 'Quote approved (Order created)' },
 ]
@@ -22,6 +23,7 @@ export function designStatusLabel(status: DesignReviewStatus): string {
     revision_needed: 'Revision needed',
     submitted_to_accounts: 'Quote preparation',
     po_for_review: 'Quote review',
+    po_approved: 'Quote approved (Supervisor)',
     po_for_approval: 'Quote submitted to client',
     approved: 'Quote approved (Order created)',
   }

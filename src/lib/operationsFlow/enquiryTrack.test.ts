@@ -50,8 +50,38 @@ describe('buildEnquiryWorkflowRow', () => {
     expect(row.revision).toBe(3)
     expect(row.cells.find((c) => c.id === 'quotation_prep')?.status).toBe('completed')
     expect(row.cells.find((c) => c.id === 'quotation_prep')?.revisionCount).toBe(3)
+    expect(row.cells.find((c) => c.id === 'quotation_review')?.status).toBe('active')
+    expect(row.cells.find((c) => c.id === 'quotation_review')?.revisionCount).toBe(3)
+    expect(row.cells.find((c) => c.id === 'quotation_approval')?.status).toBe('pending')
+  })
+
+  it('marks supervisor approval active and quote review completed when quote is approved by supervisor', () => {
+    const row = buildEnquiryWorkflowRow(
+      baseEnquiry({
+        designReview: { status: 'po_approved', revision: 2 },
+        stage: 'design_review',
+      }),
+      undefined,
+      [],
+    )
+    expect(row.cells.find((c) => c.id === 'quotation_review')?.status).toBe('completed')
     expect(row.cells.find((c) => c.id === 'quotation_approval')?.status).toBe('active')
-    expect(row.cells.find((c) => c.id === 'quotation_approval')?.revisionCount).toBe(3)
+    expect(row.cells.find((c) => c.id === 'quotation_submitted')?.status).toBe('pending')
+    expect(row.cells.find((c) => c.id === 'customer_approval')?.status).toBe('pending')
+  })
+
+  it('marks quotation submitted active and quotation approval completed when quote is submitted to client', () => {
+    const row = buildEnquiryWorkflowRow(
+      baseEnquiry({
+        designReview: { status: 'po_for_approval', revision: 2 },
+        stage: 'design_review',
+      }),
+      undefined,
+      [],
+    )
+    expect(row.cells.find((c) => c.id === 'quotation_approval')?.status).toBe('completed')
+    expect(row.cells.find((c) => c.id === 'quotation_submitted')?.status).toBe('active')
+    expect(row.cells.find((c) => c.id === 'customer_approval')?.status).toBe('pending')
   })
 
   it('positions row labels along the horizontal Design start axis without y overlap', () => {

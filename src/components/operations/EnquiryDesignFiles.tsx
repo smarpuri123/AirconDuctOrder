@@ -1,10 +1,9 @@
 import { useState } from 'react'
-import { Download } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { FileUploadZone } from '@/components/ui/FileUploadZone'
+import { DocumentDownloadButton } from '@/components/operations/DocumentDownloadButton'
 import {
   ENQUIRY_FILE_ACCEPT,
-  downloadEnquiryDocument,
   filesToPayloadsWithProgress,
 } from '@/lib/enquiryDocuments'
 import { enquiryService } from '@/services/enquiryService'
@@ -71,7 +70,7 @@ export function EnquiryDesignFiles({
 
       setProgress(100)
       setPhase('success')
-      setStatusText('Revision saved')
+      setStatusText(pendingFiles.length > 1 ? 'Files submitted successfully' : 'File submitted successfully')
       setPendingFiles([])
       await onSaved?.()
       setTimeout(() => {
@@ -104,16 +103,13 @@ export function EnquiryDesignFiles({
                   {doc.fileSize ? ` · ${formatBytes(doc.fileSize)}` : ''}
                 </p>
               </div>
-              <Button
-                type="button"
+              <DocumentDownloadButton
+                document={doc}
+                enquiryId={enquiryId}
+                variant="button"
                 size="sm"
-                variant="secondary"
-                className="min-w-0 shrink-0"
-                onClick={() => downloadEnquiryDocument({ ...doc, enquiryId })}
-              >
-                <Download className="w-4 h-4" />
-                Download
-              </Button>
+                className="shrink-0"
+              />
             </li>
           ))}
         </ul>
@@ -130,7 +126,7 @@ export function EnquiryDesignFiles({
               setPendingFiles(next)
             }}
             disabled={busy}
-            hint="Choose files, then save as a new input revision. Older revisions stay in the activity log."
+            hint="Choose files, then submit. Older revisions stay in the activity log."
             onRemoveFile={removePending}
           />
 
@@ -162,7 +158,11 @@ export function EnquiryDesignFiles({
               disabled={busy || pendingFiles.length === 0}
               onClick={handleSaveRevision}
             >
-              {busy ? 'Saving revision…' : 'Save revision'}
+              {busy
+                ? 'Submitting…'
+                : pendingFiles.length > 1
+                  ? 'Submit Files'
+                  : 'Submit File'}
             </Button>
             {pendingFiles.length > 0 && (
               <Button type="button" size="sm" variant="ghost" disabled={busy} onClick={clearPending}>

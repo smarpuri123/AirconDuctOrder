@@ -1,5 +1,6 @@
+import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Check, CheckCircle, FileText, Mail, MessageCircle, Download } from 'lucide-react'
+import { Check, CheckCircle, FileText, Mail, MessageCircle, Download, Loader2 } from 'lucide-react'
 import { dispatchService } from '@/services/dispatchService'
 import { orderService } from '@/services/orderService'
 import { enquiryService } from '@/services/enquiryService'
@@ -49,8 +50,16 @@ export function DispatchConfirmPage() {
     shareEmail(subject, body)
   }
 
-  const handlePDF = () => {
-    generateDispatchPDF(dispatch, order)
+  const [generatingPdf, setGeneratingPdf] = useState(false)
+
+  const handlePDF = async () => {
+    if (generatingPdf) return
+    setGeneratingPdf(true)
+    try {
+      await generateDispatchPDF(dispatch, order)
+    } finally {
+      setGeneratingPdf(false)
+    }
   }
 
   return (
@@ -137,9 +146,18 @@ export function DispatchConfirmPage() {
           <Mail className="w-4 h-4" />
           Email
         </Button>
-        <Button variant="secondary" onClick={handlePDF}>
-          <Download className="w-4 h-4" />
-          Download PDF
+        <Button variant="secondary" onClick={handlePDF} disabled={generatingPdf}>
+          {generatingPdf ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin text-primary" />
+              Generating PDF…
+            </>
+          ) : (
+            <>
+              <Download className="w-4 h-4" />
+              Download PDF
+            </>
+          )}
         </Button>
       </div>
 
